@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>编辑工具（Pages+KV版）</title>
+
+<style>
+    ul { padding:15px; width:350px; display:grid; row-gap:10px; grid-template-columns:repeat(3, 1fr); }
+    p { font-size: 13px; }
+    body {font-family:"Microsoft YaHei"; font-weight: 300; margin: 2px;}
+    button { font-size: 14.5px; padding: 0px 1px; background-color: #000; color: #fff; border: none; border-radius: 3px;}               
+    textarea {opacity: 0.8; font-size:11px; white-space:pre; overflow:hidden;}
+    textarea:hover {overflow: auto;}
+    #linkDisplay {
+        margin:10px 0;
+        padding:8px;
+        background:#f0f0f0;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+    }
+    #linkAnchor {
+        color: #0066cc;
+        font-weight: bold;
+        text-decoration: none;
+    }
+    #linkAnchor:hover {
+        text-decoration: underline;
+    }
+    .success-message {
+        color: green;
+        font-weight: bold;
+        margin-bottom: 5px;
+    }
+    .copy-btn {
+        margin-left: 10px;
+        background: #4CAF50;
+        color: white;
+        border: none;
+        border-radius: 3px;
+        padding: 2px 6px;
+        cursor: pointer;
+    }
+</style>
+</head>
+
+<body>
+
+<h2>文件转为<u>链接</u></h2>
+<p>输入文件名如：<code>log.json</code>、<code>test.php</code></p><br>
+
+<div>
+    源文：
+    <span id="loadingMsg" style="display:none;color:red;">正在读取中...</span>
+</div>
+
+<textarea id="content" rows="12" style="width:96%;"></textarea>
+
+<br><br>
+密码：<input id="password" style="width:150px;">
+<br>
+文件名：<input id="filename" style="width:150px;">
+<button onclick="readFile()">读取文件</button>
+<button onclick="uploadFile()">转为链接</button>
+
+<p>输入相同文件名与密码可在线编辑。</p><br>
+
+<div id="linkDisplay" style="display:none;">
+    <div class="success-message">✅ 文件已成功生成：</div>
+    <a id="linkAnchor" href="" target="_blank"></a>
+    <button class="copy-btn" onclick="copyLink()">复制</button>
+</div>
+
+<script>
+
+const API = "/api";  // ← Pages Functions 固定路径
+
+async function readFile() {
+    const filename = filenameInput.value;
+    const password = passwordInput.value;
+
+    if (!filename) return alert("请输入文件名");
+
+    loadingMsg.style.display = "inline";
+
+    try {
+        const res = await fetch(`${API}/read?filename=${encodeURIComponent(filename)}&password=${encodeURIComponent(password)}`);
+        const data = await res.json();
+
+        loadingMsg.style.display = "none";
+
+        if (data.error) return alert("错误：" + data.error);
+
+        content.value = data.content;
+        showLink(res.url);
+
+    } catch (err) {
+        alert("网络错误：" + err);
+        loadingMsg.style.display = "none";
+    }
+}
+
+async function uploadFile() {
+    const filename = filenameInput.value;
+    const password = passwordInput.value;
+    const text = content.value;
+
+    if (!filename || !password || !text) return alert("请填写所有必填字段");
+
+    loadingMsg.style.display = "inline";
+    loadingMsg.innerText = "正在生成链接...";
+
+    try {
+        const res = await fetch(`${API}/upload`, {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({ filename, password, content: text })
+        });
+
+        const data = await res.json();
+        loadingMsg.style.display = "none";
+
+        if (data.success) showLink(data.fileLink);
+        else alert("生成失败");
+
+    } catch (err) {
+        alert("网络错误：" + err);
+        loadingMsg.style.display = "none";
+    }
+}
+
+function showLink(link) {
+    linkAnchor.href = link;
+    linkAnchor.textContent = link;
+    linkDisplay.style.display = "block";
+    linkDisplay.scrollIntoView({behavior: "smooth"});
+}
+
+function copyLink() {
+    navigator.clipboard.writeText(linkAnchor.href)
+        .then(() => alert("已复制"))
+        .catch(() => alert("复制失败"));
+}
+
+const content = document.getElementById("content");
+const passwordInput = document.getElementById("password");
+const filenameInput = document.getElementById("filename");
+const loadingMsg = document.getElementById("loadingMsg");
+const linkAnchor = document.getElementById("linkAnchor");
+const linkDisplay = document.getElementById("linkDisplay");
+
+</script>
+
+</body>
+</html>
