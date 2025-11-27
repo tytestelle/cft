@@ -1,155 +1,195 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>编辑工具（Pages+KV版）</title>
-
-<style>
-    ul { padding:15px; width:350px; display:grid; row-gap:10px; grid-template-columns:repeat(3, 1fr); }
-    p { font-size: 13px; }
-    body {font-family:"Microsoft YaHei"; font-weight: 300; margin: 2px;}
-    button { font-size: 14.5px; padding: 0px 1px; background-color: #000; color: #fff; border: none; border-radius: 3px;}               
-    textarea {opacity: 0.8; font-size:11px; white-space:pre; overflow:hidden;}
-    textarea:hover {overflow: auto;}
-    #linkDisplay {
-        margin:10px 0;
-        padding:8px;
-        background:#f0f0f0;
-        border: 1px solid #ccc;
-        border-radius: 4px;
-    }
-    #linkAnchor {
-        color: #0066cc;
-        font-weight: bold;
-        text-decoration: none;
-    }
-    #linkAnchor:hover {
-        text-decoration: underline;
-    }
-    .success-message {
-        color: green;
-        font-weight: bold;
-        margin-bottom: 5px;
-    }
-    .copy-btn {
-        margin-left: 10px;
-        background: #4CAF50;
-        color: white;
-        border: none;
-        border-radius: 3px;
-        padding: 2px 6px;
-        cursor: pointer;
-    }
-</style>
+    <meta charset="UTF-8">
+    <style>   
+        ul { padding:15px; width:350px; display:grid; row-gap:10px; grid-template-columns:repeat(3, 1fr); }
+        p { font-size: 13px; }
+        body {font-family:"Microsoft YaHei"; font-weight: 300; margin: 2px;}
+        button { font-size: 14.5px; padding: 0px 1px; background-color: #000; color: #fff; border: none; border-radius: 3px;}               
+        textarea {opacity: 0.8; font-size:11px; white-space:pre; overflow:hidden;}
+        textarea:hover {overflow: auto;}
+        #linkDisplay {
+            margin:10px 0;
+            padding:8px;
+            background:#f0f0f0;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        #linkAnchor {
+            color: #0066cc;
+            font-weight: bold;
+            text-decoration: none;
+        }
+        #linkAnchor:hover {
+            text-decoration: underline;
+        }
+        .success-message {
+            color: green;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        .copy-btn {
+            margin-left: 10px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            padding: 2px 6px;
+            cursor: pointer;
+        }
+    </style>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>📝编辑工具📝</title>
 </head>
 
 <body>
+    <h2>文件转为<u>链接</u></h2>
+    <p>可自定义扩展名，输入完整文件名如：<code>log.json</code>、<code>test.php</code>。〖<a href="./search.html"><b>接口搜索</b></a>〗</p><br>
 
-<h2>文件转为<u>链接</u></h2>
-<p>输入文件名如：<code>log.json</code>、<code>test.php</code></p><br>
+    <form id="uploadForm">
+        <div style="display: flex;">源文：
+            <span id="loadingMsg" style="display: none; color: red;">正在读取中...</span>
+        </div>
+        <textarea name="content" id="content" rows="12" cols="44" required style="width:96%; margin:0;"></textarea>
+        <br><br>密码：
+        <input type="text" name="password" id="password" required style="width:150px;"> 请牢记！！
+        <br>文件名（含扩展名）：
+        <input type="text" name="filename" id="filename" required style="width:150px;">
+        <button type="button" onclick="readFile()">读取文件</button>
+        <button type="button" onclick="uploadFile()">转为链接</button>
+    </form>
+    <p>可在线编辑已有文件，输入相同文件名与密码。</p><br>    
 
-<div>
-    源文：
-    <span id="loadingMsg" style="display:none;color:red;">正在读取中...</span>
-</div>
+    <div id="linkDisplay" style="display:none;">
+        <div class="success-message">✅ 文件已成功转为链接：</div>
+        <a id="linkAnchor" href="" target="_blank"></a>
+        <button class="copy-btn" onclick="copyLink()">复制链接</button>
+    </div>
+    
+<ul>
+     <li><a href="http://is.is-great.org/">一键接口</a></li>
+     <li><a href="http://zozo.work.gd/ys/">接口隐身</a></li>     
+      <li><a href="http://94.7749.org/">点播加密</a></li>
+      <li><a href="http://94.7749.org/9/">接口解密</a></li>
+      <li><a href="http://go2.work.gd/m3u/">接口转换</a></li>
 
-<textarea id="content" rows="12" style="width:96%;"></textarea>
+      <li><a href="http://go.work.gd/_JK.htm">大佬接口</a></li>
+      <li><a href="http://go2.work.gd/">接口大全</a></li>      
+      <li><a href="http://go.7749.org/">一起看看</a></li> 
+  </ul>
+  
+    <script>
+        function readFile() {
+            const filename = document.getElementById('filename').value;
+            const password = document.getElementById('password').value;
+            
+            if (!filename) {
+                alert('请输入文件名');
+                return;
+            }
+            
+            const xhr = new XMLHttpRequest();
+            xhr.open('GET', 'read0.php?filename=' + encodeURIComponent(filename) + 
+                          '&password=' + encodeURIComponent(password), true);
 
-<br><br>
-密码：<input id="password" style="width:150px;">
-<br>
-文件名：<input id="filename" style="width:150px;">
-<button onclick="readFile()">读取文件</button>
-<button onclick="uploadFile()">转为链接</button>
+            document.getElementById('loadingMsg').style.display = 'inline';
 
-<p>输入相同文件名与密码可在线编辑。</p><br>
+            xhr.onload = function() {
+                document.getElementById('loadingMsg').style.display = 'none';
+                
+                if (xhr.status === 200) {
+                    try {
+                        const response = JSON.parse(xhr.responseText);
+                        
+                        if (response.error) {
+                            alert('错误: ' + response.error);
+                        } else {
+                            document.getElementById('content').value = response.content;
+                            showLink(response.fileLink);
+                        }
+                    } catch (e) {
+                        alert('解析响应失败: ' + e.message);
+                    }
+                } else {
+                    alert('请求失败: ' + xhr.statusText);
+                }
+            };
 
-<div id="linkDisplay" style="display:none;">
-    <div class="success-message">✅ 文件已成功生成：</div>
-    <a id="linkAnchor" href="" target="_blank"></a>
-    <button class="copy-btn" onclick="copyLink()">复制</button>
-</div>
+            xhr.onerror = function() {
+                document.getElementById('loadingMsg').style.display = 'none';
+                alert('网络错误');
+            };
 
-<script>
-
-const API = "/api";  // ← Pages Functions 固定路径
-
-async function readFile() {
-    const filename = filenameInput.value;
-    const password = passwordInput.value;
-
-    if (!filename) return alert("请输入文件名");
-
-    loadingMsg.style.display = "inline";
-
-    try {
-        const res = await fetch(`${API}/read?filename=${encodeURIComponent(filename)}&password=${encodeURIComponent(password)}`);
-        const data = await res.json();
-
-        loadingMsg.style.display = "none";
-
-        if (data.error) return alert("错误：" + data.error);
-
-        content.value = data.content;
-        showLink(res.url);
-
-    } catch (err) {
-        alert("网络错误：" + err);
-        loadingMsg.style.display = "none";
-    }
-}
-
-async function uploadFile() {
-    const filename = filenameInput.value;
-    const password = passwordInput.value;
-    const text = content.value;
-
-    if (!filename || !password || !text) return alert("请填写所有必填字段");
-
-    loadingMsg.style.display = "inline";
-    loadingMsg.innerText = "正在生成链接...";
-
-    try {
-        const res = await fetch(`${API}/upload`, {
-            method: "POST",
-            headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({ filename, password, content: text })
-        });
-
-        const data = await res.json();
-        loadingMsg.style.display = "none";
-
-        if (data.success) showLink(data.fileLink);
-        else alert("生成失败");
-
-    } catch (err) {
-        alert("网络错误：" + err);
-        loadingMsg.style.display = "none";
-    }
-}
-
-function showLink(link) {
-    linkAnchor.href = link;
-    linkAnchor.textContent = link;
-    linkDisplay.style.display = "block";
-    linkDisplay.scrollIntoView({behavior: "smooth"});
-}
-
-function copyLink() {
-    navigator.clipboard.writeText(linkAnchor.href)
-        .then(() => alert("已复制"))
-        .catch(() => alert("复制失败"));
-}
-
-const content = document.getElementById("content");
-const passwordInput = document.getElementById("password");
-const filenameInput = document.getElementById("filename");
-const loadingMsg = document.getElementById("loadingMsg");
-const linkAnchor = document.getElementById("linkAnchor");
-const linkDisplay = document.getElementById("linkDisplay");
-
-</script>
-
+            xhr.send();
+        }
+        
+        function uploadFile() {
+            const filename = document.getElementById('filename').value;
+            const password = document.getElementById('password').value;
+            const content = document.getElementById('content').value;
+            
+            if (!filename || !password || !content) {
+                alert('请填写所有必填字段');
+                return;
+            }
+            
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', 'upload.php', true);
+            xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+            
+            document.getElementById('loadingMsg').style.display = 'inline';
+            document.getElementById('loadingMsg').textContent = '正在生成链接...';
+            
+            xhr.onload = function() {
+                document.getElementById('loadingMsg').style.display = 'none';
+                
+                if (xhr.status === 200) {
+                    try {
+                        const response = JSON.parse(xhr.responseText);
+                        if (response.success) {
+                            showLink(response.fileLink);
+                        } else {
+                            alert('生成链接失败: ' + (response.error || ''));
+                        }
+                    } catch (e) {
+                        alert('解析响应失败: ' + e.message);
+                    }
+                } else {
+                    alert('上传失败: ' + xhr.statusText);
+                }
+            };
+            
+            xhr.onerror = function() {
+                document.getElementById('loadingMsg').style.display = 'none';
+                alert('网络错误');
+            };
+            
+            // 构建表单数据
+            const params = 'filename=' + encodeURIComponent(filename) + 
+                          '&password=' + encodeURIComponent(password) + 
+                          '&content=' + encodeURIComponent(content);
+            xhr.send(params);
+        }
+        
+        function showLink(link) {
+            const linkDisplay = document.getElementById('linkDisplay');
+            const linkAnchor = document.getElementById('linkAnchor');
+            
+            linkAnchor.href = link;
+            linkAnchor.textContent = link;
+            linkDisplay.style.display = 'block';
+            
+            // 自动滚动到链接显示区域
+            linkDisplay.scrollIntoView({ behavior: 'smooth' });
+        }
+        
+        function copyLink() {
+            const link = document.getElementById('linkAnchor').href;
+            navigator.clipboard.writeText(link)
+                .then(() => alert('链接已复制到剪贴板'))
+                .catch(err => alert('复制失败: ' + err));
+        }
+    </script>
 </body>
 </html>
