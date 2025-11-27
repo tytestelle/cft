@@ -1,0 +1,8 @@
+name = "cft2025"
+compatibility_date = "2024-01-15"
+pages_build_output_dir = "./public"
+
+[[kv_namespaces]]
+binding = "MY_TEXT_STORAGE"
+id = "your-kv-namespace-id"  # 需要在Cloudflare中创建后替换
+preview_id = "your-kv-namespace-preview-id"
