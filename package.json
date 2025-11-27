@@ -1,0 +1,16 @@
+{
+  "name": "cft",
+  "version": "1.0.0",
+  "description": "Cloudflare Pages Text Storage System",
+  "main": "functions/[[path]].js",
+  "scripts": {
+    "dev": "wrangler pages dev public --kv MY_TEXT_STORAGE",
+    "deploy": "wrangler pages deploy public"
+  },
+  "keywords": ["cloudflare", "pages", "text-storage"],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "wrangler": "^3.0.0"
+  }
+}
