@@ -131,7 +131,7 @@ async function getIndexHTML() {
 
 <body>
     <h2>文件转为<u>链接</u></h2>
-    <p>可自定义扩展名，输入完整文件名如：<code>log.json</code>、<code>test.php</code>。〖<a href="./search.html"><b>接口搜索</b></a>〗</p><br>
+    <p>可自定义扩展名，输入完整文件名如：<code>log.json</code>、<code>test.php</code>。</p><br>
 
     <form id="uploadForm">
         <div style="display: flex;">源文：
