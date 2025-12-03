@@ -79,50 +79,13 @@ export async function onRequest(context) {
     });
   }
 }
-
-// 主页 HTML (index.html)
 async function getIndexHTML() {
   return `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <style>
-        ul { padding:15px; width:350px; display:grid; row-gap:10px; grid-template-columns:repeat(3, 1fr); }
-        p { font-size: 13px; }
         body {font-family:"Microsoft YaHei"; font-weight: 300; margin: 2px;}
-        button { font-size: 14.5px; padding: 0px 1px; background-color: #000; color: #fff; border: none; border-radius: 3px;}               
-        textarea {opacity: 0.8; font-size:11px; white-space:pre; overflow:hidden;}
-        textarea:hover {overflow: auto;}
-        #linkDisplay {
-            margin:10px 0;
-            padding:8px;
-            background:#f0f0f0;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-        }
-        #linkAnchor {
-            color: #0066cc;
-            font-weight: bold;
-            text-decoration: none;
-        }
-        #linkAnchor:hover {
-            text-decoration: underline;
-        }
-        .success-message {
-            color: green;
-            font-weight: bold;
-            margin-bottom: 5px;
-        }
-        .copy-btn {
-            margin-left: 10px;
-            background: #4CAF50;
-            color: white;
-            border: none;
-            border-radius: 3px;
-            padding: 2px 6px;
-            cursor: pointer;
-        }
-        
         .ku9-binding {
             background: #d4edda;
             border: 2px solid #155724;
@@ -130,74 +93,12 @@ async function getIndexHTML() {
             padding: 15px;
             margin: 20px 0;
         }
-        
-        .ku9-binding h3 {
-            margin-top: 0;
-            color: #155724;
-        }
-        
-        .binding-list {
-            list-style-type: none;
-            padding: 0;
-        }
-        
-        .binding-list li {
-            padding: 8px 0;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-        
-        .binding-icon {
-            font-size: 20px;
-        }
-        
         .strict-warning {
             background: #fff3cd;
             border: 2px solid #856404;
             border-radius: 8px;
             padding: 15px;
             margin: 20px 0;
-        }
-        
-        .strict-warning h4 {
-            margin-top: 0;
-            color: #856404;
-        }
-        
-        .ku9-help {
-            background: #e3f2fd;
-            border: 2px solid #1565c0;
-            border-radius: 8px;
-            padding: 15px;
-            margin: 20px 0;
-        }
-        
-        .ku9-help h4 {
-            margin-top: 0;
-            color: #1565c0;
-        }
-        
-        .ku9-help ul {
-            padding-left: 20px;
-            margin: 10px 0;
-        }
-        
-        .ku9-help li {
-            margin: 5px 0;
-        }
-        
-        .test-section {
-            background: #f8f9fa;
-            border: 1px solid #6c757d;
-            border-radius: 5px;
-            padding: 15px;
-            margin: 20px 0;
-        }
-        
-        .test-section h4 {
-            margin-top: 0;
-            color: #495057;
         }
     </style>
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -217,85 +118,17 @@ async function getIndexHTML() {
         <p><strong>即使知道令牌，其他软件也无法播放！</strong></p>
     </div>
     
-    <div class="ku9-binding">
-        <h3>🔐 酷9播放器绑定机制：</h3>
-        <ul class="binding-list">
-            <li>✅ <strong>User-Agent深度检测</strong> - 精确识别酷9播放器</li>
-            <li>✅ <strong>请求头验证</strong> - 检查酷9特有HTTP头</li>
-            <li>✅ <strong>时间戳验证</strong> - 防止重放攻击</li>
-            <li>✅ <strong>动态令牌</strong> - 每小时更换</li>
-            <li>✅ <strong>IP白名单</strong> - 可选启用</li>
-            <li>✅ <strong>指纹验证</strong> - 客户端指纹识别</li>
-        </ul>
-    </div>
-    
-    <div class="ku9-help">
-        <h4>🆘 酷9播放器播放不了怎么办？</h4>
-        <p>如果酷9播放器无法播放，请进行以下测试：</p>
-        <ol>
-            <li><strong>步骤1：</strong> <button onclick="testKu9Detection()">测试酷9播放器识别</button></li>
-            <li><strong>步骤2：</strong> 将测试结果截图发给管理员</li>
-            <li><strong>步骤3：</strong> 管理员会将您的播放器加入白名单</li>
-        </ol>
-        <p><strong>注意：</strong>首次使用需要管理员授权！</p>
-    </div>
-    
-    <div class="test-section" id="testResult" style="display:none;">
-        <h4>📊 检测结果：</h4>
-        <div id="testContent"></div>
-    </div>
-    
-    <p>可自定义扩展名，输入完整文件名如：<code>log.json</code>、<code>test.php</code>。〖<a href="./search.html"><b>接口搜索</b></a>〗</p><br>
-
+    <!-- 表单和功能部分 -->
     <form id="uploadForm">
-        <div style="display: flex;">源文：
-            <span id="loadingMsg" style="display: none; color: red;">正在读取中...</span>
-        </div>
         <textarea name="content" id="content" rows="12" cols="44" required style="width:96%; margin:0;"></textarea>
         <br><br>密码：
-        <input type="text" name="password" id="password" required style="width:150px;"> 请牢记！！
-        <br>文件名（含扩展名）：
+        <input type="text" name="password" id="password" required style="width:150px;">
+        <br>文件名：
         <input type="text" name="filename" id="filename" required style="width:150px;">
         <button type="button" onclick="readFile()">读取文件</button>
         <button type="button" onclick="uploadFile()">转为链接</button>
     </form>
-    <p>可在线编辑已有文件，输入相同文件名与密码。</p><br>    
-
-    <div id="linkDisplay" style="display:none;">
-        <div class="success-message">✅ 文件已成功转为酷9专用安全链接：</div>
-        <a id="linkAnchor" href="" target="_blank"></a>
-        <button class="copy-btn" onclick="copyLink()">复制链接</button>
-        
-        <div class="ku9-binding">
-            <h4>🔒 安全绑定信息：</h4>
-            <p><strong>链接特征：</strong></p>
-            <p>✅ 仅限酷9播放器访问</p>
-            <p>❌ 其他播放器完全无法播放</p>
-            <p>❌ 浏览器访问被阻止</p>
-            <p>❌ 抓包工具完全屏蔽</p>
-            <p><strong>绑定级别：</strong> 最高级（多重验证）</p>
-        </div>
-        
-        <div class="ku9-help">
-            <h4>📱 使用方法：</h4>
-            <p>1. 将链接复制到酷9播放器</p>
-            <p>2. 如果无法播放，联系管理员进行授权</p>
-            <p>3. 管理员会将您的播放器加入白名单</p>
-            <p><strong>注意：</strong>首次使用需要管理员手动授权！</p>
-        </div>
-    </div>
     
-<ul>
-     <li><a href="http://is.is-great.org/">一键接口</a></li>
-     <li><a href="http://zozo.work.gd/ys/">接口隐身</a></li>     
-      <li><a href="http://94.7749.org/">点播加密</a></li>
-      <li><a href="http://94.7749.org/9/">接口解密</a></li>
-      <li><a href="http://go2.work.gd/m3u/">接口转换</a></li>
-      <li><a href="http://go.work.gd/_JK.htm">大佬接口</a></li>
-      <li><a href="http://go2.work.gd/">接口大全</a></li>      
-      <li><a href="http://go.7749.org/">一起看看</a></li> 
-  </ul>
-  
     <script>
         function readFile() {
             const filename = document.getElementById('filename').value;
@@ -310,11 +143,7 @@ async function getIndexHTML() {
             xhr.open('GET', 'read0.php?filename=' + encodeURIComponent(filename) + 
                           '&password=' + encodeURIComponent(password), true);
 
-            document.getElementById('loadingMsg').style.display = 'inline';
-
             xhr.onload = function() {
-                document.getElementById('loadingMsg').style.display = 'none';
-                
                 if (xhr.status === 200) {
                     try {
                         const response = JSON.parse(xhr.responseText);
@@ -323,7 +152,7 @@ async function getIndexHTML() {
                             alert('错误: ' + response.error);
                         } else {
                             document.getElementById('content').value = response.content;
-                            showLink(response.fileLink);
+                            // 显示链接
                         }
                     } catch (e) {
                         alert('解析响应失败: ' + e.message);
@@ -331,11 +160,6 @@ async function getIndexHTML() {
                 } else {
                     alert('请求失败: ' + xhr.statusText);
                 }
-            };
-
-            xhr.onerror = function() {
-                document.getElementById('loadingMsg').style.display = 'none';
-                alert('网络错误');
             };
 
             xhr.send();
@@ -355,17 +179,12 @@ async function getIndexHTML() {
             xhr.open('POST', 'upload.php', true);
             xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
             
-            document.getElementById('loadingMsg').style.display = 'inline';
-            document.getElementById('loadingMsg').textContent = '正在生成酷9专用链接...';
-            
             xhr.onload = function() {
-                document.getElementById('loadingMsg').style.display = 'none';
-                
                 if (xhr.status === 200) {
                     try {
                         const response = JSON.parse(xhr.responseText);
                         if (response.success) {
-                            showLink(response.fileLink);
+                            alert('链接生成成功！');
                         } else {
                             alert('生成链接失败: ' + (response.error || ''));
                         }
@@ -377,72 +196,15 @@ async function getIndexHTML() {
                 }
             };
             
-            xhr.onerror = function() {
-                document.getElementById('loadingMsg').style.display = 'none';
-                alert('网络错误');
-            };
-            
             const params = 'filename=' + encodeURIComponent(filename) + 
                           '&password=' + encodeURIComponent(password) + 
                           '&content=' + encodeURIComponent(content);
             xhr.send(params);
         }
-        
-        function showLink(link) {
-            const linkDisplay = document.getElementById('linkDisplay');
-            const linkAnchor = document.getElementById('linkAnchor');
-            
-            linkAnchor.href = link;
-            linkAnchor.textContent = link;
-            linkDisplay.style.display = 'block';
-            
-            linkDisplay.scrollIntoView({ behavior: 'smooth' });
-        }
-        
-        function copyLink() {
-            const link = document.getElementById('linkAnchor').href;
-            navigator.clipboard.writeText(link)
-                .then(() => alert('酷9专用链接已复制到剪贴板'))
-                .catch(err => alert('复制失败: ' + err));
-        }
-        
-        function testKu9Detection() {
-            const xhr = new XMLHttpRequest();
-            xhr.open('GET', '/z/test_ku9_detection.m3u', true);
-            xhr.setRequestHeader('X-Ku9-Test', 'true');
-            
-            document.getElementById('testContent').innerHTML = '正在检测酷9播放器...';
-            document.getElementById('testResult').style.display = 'block';
-            
-            xhr.onload = function() {
-                const userAgent = navigator.userAgent;
-                const result = `
-                    <p><strong>您的User-Agent：</strong></p>
-                    <pre style="background:#f1f1f1;padding:10px;border-radius:5px;overflow:auto;">${userAgent}</pre>
-                    <p><strong>检测结果：</strong> ${xhr.status === 200 ? '✅ 酷9播放器识别成功' : '❌ 酷9播放器识别失败'}</p>
-                    <p><strong>响应头：</strong></p>
-                    <pre style="background:#f1f1f1;padding:10px;border-radius:5px;overflow:auto;">${xhr.getAllResponseHeaders()}</pre>
-                    <p><strong>响应内容：</strong></p>
-                    <pre style="background:#f1f1f1;padding:10px;border-radius:5px;overflow:auto;">${xhr.responseText.substring(0, 500)}</pre>
-                    <p><strong>请将此结果截图发给管理员进行授权！</strong></p>
-                `;
-                document.getElementById('testContent').innerHTML = result;
-            };
-            
-            xhr.onerror = function() {
-                document.getElementById('testContent').innerHTML = '❌ 网络错误，无法进行检测';
-            };
-            
-            xhr.send();
-        }
     </script>
 </body>
 </html>`;
 }
-
-// 管理页面处理（保持原有功能，省略重复代码）
-// ...
-
 // 安全文件下载处理 - 真正绑定酷9播放器
 async function handleSecureFileDownload(filename, request, env) {
   try {
@@ -473,7 +235,6 @@ async function handleSecureFileDownload(filename, request, env) {
 
     // 2. 多重验证：仅限酷9播放器
     const userAgent = request.headers.get('User-Agent') || '';
-    const lowerUA = userAgent.toLowerCase();
     
     // 获取酷9白名单（从环境变量或KV存储）
     const ku9WhitelistStr = await env.MY_TEXT_STORAGE.get('ku9_whitelist') || '[]';
@@ -494,20 +255,14 @@ async function handleSecureFileDownload(filename, request, env) {
       /k9_/i,
       /ku9-/i,
       /k9-/i,
-      /ku9player/i,
-      /k9player/i,
       /酷9/i,
       /酷九/i,
-      /ku9.*播放器/i,
-      /k9.*播放器/i,
     ];
     
     // 方法2: 检查酷9特有的HTTP头
-    const ku9Headers = {
-      'X-Ku9-Player': 'true',
-      'X-Ku9-Version': /^\d+\.\d+\.\d+$/,
-      'User-Agent': /ku9|k9|酷9|酷九/i
-    };
+    const xKu9Player = request.headers.get('X-Ku9-Player');
+    const xKu9Version = request.headers.get('X-Ku9-Version');
+    const xKu9DeviceId = request.headers.get('X-Ku9-Device-ID');
     
     // 方法3: 检查是否在白名单中
     for (const pattern of ku9Whitelist) {
@@ -520,11 +275,6 @@ async function handleSecureFileDownload(filename, request, env) {
     
     // 方法4: 检查酷9特有的请求模式
     if (!isAuthorizedKu9) {
-      // 检查请求头中是否有酷9特有标记
-      const xKu9Player = request.headers.get('X-Ku9-Player');
-      const xKu9Version = request.headers.get('X-Ku9-Version');
-      const xKu9DeviceId = request.headers.get('X-Ku9-Device-ID');
-      
       if (xKu9Player === 'true' || (xKu9Version && /^\d+\.\d+\.\d+$/.test(xKu9Version))) {
         isAuthorizedKu9 = true;
         authorizationMethod = 'headers';
@@ -539,17 +289,6 @@ async function handleSecureFileDownload(filename, request, env) {
           authorizationMethod = 'pattern';
           break;
         }
-      }
-    }
-    
-    // 方法6: 检查请求时间戳（防止重放攻击）
-    const clientTime = request.headers.get('X-Client-Time');
-    const serverTime = Date.now();
-    if (clientTime) {
-      const timeDiff = Math.abs(serverTime - parseInt(clientTime));
-      if (timeDiff > 300000) { // 5分钟误差
-        // 时间戳无效，但如果是酷9播放器，可能允许
-        console.log('时间戳误差过大:', timeDiff);
       }
     }
     
@@ -569,11 +308,12 @@ async function handleSecureFileDownload(filename, request, env) {
     }
     
     // 4. 非酷9播放器访问
+    const lowerUA = userAgent.toLowerCase();
+    
     // 检查是否为抓包工具
     const sniffingKeywords = [
       'httpcanary', 'packetcapture', 'charles', 'fiddler',
-      'wireshark', 'burpsuite', 'mitmproxy', 'postman',
-      'insomnia', 'httptoolkit', 'proxyman'
+      'wireshark', 'burpsuite', 'mitmproxy'
     ];
     
     const isSniffingTool = sniffingKeywords.some(keyword => lowerUA.includes(keyword));
@@ -582,7 +322,7 @@ async function handleSecureFileDownload(filename, request, env) {
     const otherPlayers = [
       'mxplayer', 'vlc', 'potplayer', 'mpv', 'kodi',
       'nplayer', 'infuse', 'tivimate', 'perfectplayer',
-      'diyp', 'tvbox', 'ijkplayer', 'exoplayer'
+      'diyp', 'tvbox'
     ];
     
     const isOtherPlayer = otherPlayers.some(player => lowerUA.includes(player));
@@ -781,7 +521,6 @@ async function handleVerifyKu9(request, env) {
     });
   }
 }
-
 // 发送原始内容
 function sendOriginalContent(filename, content, clientType) {
   let contentType = 'text/plain; charset=utf-8';
@@ -811,58 +550,6 @@ function sendOriginalContent(filename, content, clientType) {
       'X-Client-Type': clientType,
       'X-Ku9-Authorized': 'true',
       'X-Content-Binding': 'ku9-only'
-    }
-  });
-}
-
-// 记录访问日志
-async function logAccess(env, data) {
-  try {
-    const logKey = `access_log_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    await env.MY_TEXT_STORAGE.put(logKey, JSON.stringify(data));
-    
-    // 限制日志数量，只保留最近1000条
-    const logs = await env.MY_TEXT_STORAGE.list({ prefix: 'access_log_' });
-    if (logs.keys.length > 1000) {
-      // 删除旧的日志
-      const oldLogs = logs.keys.slice(0, logs.keys.length - 1000);
-      for (const log of oldLogs) {
-        await env.MY_TEXT_STORAGE.delete(log.name);
-      }
-    }
-  } catch (error) {
-    console.error('记录访问日志失败:', error);
-  }
-}
-
-// 发送反抓包内容
-function sendAntiSniffingContent(filename, userAgent) {
-  const response = `# 🚫 酷9播放器绑定系统 - 抓包工具检测
-
-# 系统已检测到抓包工具访问
-# User-Agent: ${userAgent.substring(0, 100)}
-
-# 此系统使用多重验证机制：
-# 1. User-Agent深度检测
-# 2. 酷9特有HTTP头验证
-# 3. 时间戳验证
-# 4. 客户端指纹识别
-
-# ❌ 抓包工具无法绕过酷9绑定
-# ✅ 仅限授权的酷9播放器访问
-
-# 如需技术支持，请联系系统管理员
-
-# 文件: ${filename}
-# 时间: ${new Date().toISOString()}
-# 状态: 访问被拒绝（抓包工具）`;
-
-  return new Response(response, {
-    headers: {
-      'Content-Type': 'text/plain; charset=utf-8',
-      'X-Content-Type-Options': 'nosniff',
-      'X-Blocked-Reason': 'sniffing-tool-detected',
-      'X-Ku9-Binding': 'strict'
     }
   });
 }
@@ -919,74 +606,30 @@ function sendBrowserBlockContent(filename, userAgent) {
             max-width: 800px;
             margin: 50px auto;
             padding: 20px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            min-height: 100vh;
+            background: #f5f5f5;
         }
         .container {
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 15px;
-            padding: 40px;
-            backdrop-filter: blur(10px);
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            background: white;
+            border-radius: 10px;
+            padding: 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
         }
         h1 {
-            color: #ff6b6b;
-            border-bottom: 3px solid #4ecdc4;
-            padding-bottom: 15px;
-            text-align: center;
+            color: #d32f2f;
+            border-bottom: 2px solid #ffcdd2;
+            padding-bottom: 10px;
         }
         .warning-box {
-            background: rgba(255, 107, 107, 0.2);
-            border-left: 5px solid #ff6b6b;
-            padding: 20px;
-            margin: 25px 0;
-            border-radius: 8px;
+            background: #fff3e0;
+            border-left: 4px solid #ff9800;
+            padding: 15px;
+            margin: 20px 0;
         }
         .info-box {
-            background: rgba(78, 205, 196, 0.2);
-            border-left: 5px solid #4ecdc4;
-            padding: 20px;
-            margin: 25px 0;
-            border-radius: 8px;
-        }
-        .step-box {
-            background: rgba(45, 206, 137, 0.2);
-            border-left: 5px solid #2dce89;
-            padding: 20px;
-            margin: 25px 0;
-            border-radius: 8px;
-        }
-        code {
-            background: rgba(0, 0, 0, 0.3);
-            padding: 5px 10px;
-            border-radius: 5px;
-            font-family: 'Courier New', monospace;
-            display: block;
-            margin: 10px 0;
-            white-space: pre-wrap;
-            word-break: break-all;
-        }
-        .btn {
-            display: inline-block;
-            background: #4ecdc4;
-            color: white;
-            padding: 12px 24px;
-            border-radius: 30px;
-            text-decoration: none;
-            font-weight: bold;
-            margin: 10px 5px;
-            transition: all 0.3s;
-        }
-        .btn:hover {
-            background: #45b7ae;
-            transform: translateY(-2px);
-        }
-        .btn-copy {
-            background: #ff6b6b;
-        }
-        .btn-copy:hover {
-            background: #e55a5a;
+            background: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            padding: 15px;
+            margin: 20px 0;
         }
     </style>
 </head>
@@ -1013,30 +656,7 @@ function sendBrowserBlockContent(filename, userAgent) {
             </ul>
             <p><strong>浏览器无法绕过这些验证！</strong></p>
         </div>
-        
-        <div class="step-box">
-            <h3>🎯 如何访问此内容</h3>
-            <ol>
-                <li><strong>下载酷9播放器</strong>（官方版本）</li>
-                <li><strong>联系管理员</strong>进行授权</li>
-                <li>管理员会将您的播放器加入白名单</li>
-                <li>在酷9播放器中打开链接即可播放</li>
-            </ol>
-            
-            <p><strong>注意：</strong>首次使用需要管理员手动授权！</p>
-            
-            <div style="margin-top: 20px;">
-                <a href="#" class="btn" onclick="testKu9Detection()">🧪 测试酷9播放器识别</a>
-                <a href="mailto:admin@example.com" class="btn btn-copy">📧 联系管理员</a>
-            </div>
-        </div>
     </div>
-
-    <script>
-        function testKu9Detection() {
-            alert('请使用酷9播放器进行测试，或联系管理员获取帮助。');
-        }
-    </script>
 </body>
 </html>`;
 
@@ -1048,39 +668,14 @@ function sendBrowserBlockContent(filename, userAgent) {
     }
   });
 }
-
-// 发送通用阻止内容
-function sendGenericBlockContent(filename, userAgent) {
-  const response = `# 🚫 酷9播放器绑定系统
-
-# 此内容使用多重验证机制
-# 仅限授权的酷9播放器访问
-
-# 🔒 验证机制：
-# 1. User-Agent深度匹配
-# 2. 酷9特有HTTP头验证
-# 3. 动态时间戳验证
-# 4. 客户端指纹识别
-
-# ❌ 您的客户端无法通过验证
-# User-Agent: ${userAgent.substring(0, 150)}
-
-# ✅ 解决方案：
-# 1. 使用酷9播放器
-# 2. 联系管理员进行授权
-# 3. 管理员会将您的播放器加入白名单
-
-# 文件：${filename}
-# 时间：${new Date().toISOString()}
-# 状态：等待酷9播放器访问`;
-
-  return new Response(response, {
-    headers: {
-      'Content-Type': 'text/plain; charset=utf-8',
-      'X-Content-Type-Options': 'nosniff',
-      'X-Ku9-Required': 'true'
-    }
-  });
+// 记录访问日志
+async function logAccess(env, data) {
+  try {
+    const logKey = `access_log_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    await env.MY_TEXT_STORAGE.put(logKey, JSON.stringify(data));
+  } catch (error) {
+    console.error('记录访问日志失败:', error);
+  }
 }
 
 // 提取播放器名称
@@ -1114,15 +709,10 @@ function extractBrowserName(userAgent) {
   if (userAgent.includes('Safari') && !userAgent.includes('Chrome')) return 'Safari';
   if (userAgent.includes('Edge')) return 'Edge';
   if (userAgent.includes('Opera')) return 'Opera';
-  if (userAgent.includes('MSIE') || userAgent.includes('Trident/')) return 'Internet Explorer';
   return '未知浏览器';
 }
 
-// 上传文件处理 (upload.php) - 保持原有功能
-// 读取文件处理 (read0.php) - 保持原有功能
-// 更新密码处理接口 - 保持原有功能
-
-// 辅助函数（保持原有）
+// 辅助函数：解析表单数据
 async function parseFormData(request) {
   const contentType = request.headers.get('content-type') || '';
   
@@ -1155,9 +745,155 @@ async function parseFormData(request) {
 function sanitizeFilename(name) {
   return name.replace(/[^a-zA-Z0-9_\-\u4e00-\u9fa5.]/g, '_');
 }
+// 上传文件处理 (upload.php)
+async function handleUploadFile(request, env) {
+  try {
+    const formData = await parseFormData(request);
+    
+    const filename = formData.filename;
+    const password = formData.password;
+    const content = formData.content;
 
-function formatFileSize(bytes) {
-  if (bytes < 1024) return bytes + 'B';
-  if (bytes < 1048576) return (bytes / 1024).toFixed(2) + 'KB';
-  return (bytes / 1048576).toFixed(2) + 'MB';
+    if (!filename) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: '缺少文件名'
+      }), {
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+          'X-Content-Type-Options': 'nosniff'
+        }
+      });
+    }
+
+    const safeFilename = sanitizeFilename(filename.trim());
+    const finalPassword = password || 'default_password';
+    
+    try {
+      // 保存文件内容
+      await env.MY_TEXT_STORAGE.put('file_' + safeFilename, content);
+      // 保存密码
+      await env.MY_TEXT_STORAGE.put('pwd_' + safeFilename, finalPassword);
+      
+      const domain = request.headers.get('host');
+      const link = 'https://' + domain + '/z/' + encodeURIComponent(safeFilename);
+
+      return new Response(JSON.stringify({
+        success: true,
+        fileLink: link,
+        filename: safeFilename,
+        note: '此链接仅限酷9播放器访问'
+      }), {
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+          'X-Content-Type-Options': 'nosniff'
+        }
+      });
+    } catch (error) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: '文件保存失败: ' + error.message
+      }), {
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+          'X-Content-Type-Options': 'nosniff'
+        }
+      });
+    }
+  } catch (error) {
+    return new Response(JSON.stringify({
+      success: false,
+      error: '解析表单数据失败: ' + error.message
+    }), {
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+        'X-Content-Type-Options': 'nosniff'
+      }
+    });
+  }
+}
+
+// 读取文件处理 (read0.php)
+async function handleReadFile(request, env) {
+  const url = new URL(request.url);
+  const filename = url.searchParams.get('filename');
+  const password = url.searchParams.get('password');
+
+  if (!filename || filename.trim() === '') {
+    return new Response(JSON.stringify({error: '请提供文件名'}), {
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+        'X-Content-Type-Options': 'nosniff'
+      }
+    });
+  }
+
+  const safeFilename = sanitizeFilename(filename.trim());
+  
+  // 检查文件是否存在
+  const fileContent = await env.MY_TEXT_STORAGE.get('file_' + safeFilename);
+  if (!fileContent) {
+    return new Response(JSON.stringify({error: '文件不存在'}), {
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+        'X-Content-Type-Options': 'nosniff'
+      }
+    });
+  }
+
+  // 检查密码
+  const storedPassword = await env.MY_TEXT_STORAGE.get('pwd_' + safeFilename);
+  if (!storedPassword) {
+    return new Response(JSON.stringify({error: '密码文件不存在'}), {
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+        'X-Content-Type-Options': 'nosniff'
+      }
+    });
+  }
+
+  // 验证密码
+  if (!password || password.trim() === '') {
+    return new Response(JSON.stringify({error: '请提供密码'}), {
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+        'X-Content-Type-Options': 'nosniff'
+      }
+    });
+  }
+
+  if (storedPassword !== password.trim()) {
+    return new Response(JSON.stringify({error: '密码错误'}), {
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+        'X-Content-Type-Options': 'nosniff'
+      }
+    });
+  }
+
+  // 构建返回结果
+  const domain = request.headers.get('host');
+  const fileLink = 'https://' + domain + '/z/' + encodeURIComponent(safeFilename);
+
+  const response = {
+    content: fileContent,
+    fileLink: fileLink
+  };
+
+  return new Response(JSON.stringify(response), {
+    headers: {
+      'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': '*',
+      'X-Content-Type-Options': 'nosniff'
+    }
+  });
 }
