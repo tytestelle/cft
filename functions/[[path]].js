@@ -60,6 +60,26 @@ export async function onRequest(context) {
       return await handleGetEncryptionKey(request, env);
     }
 
+    // API: 获取日志详情
+    if (pathname === '/api_log_detail' && request.method === 'GET') {
+      return await handleLogDetail(request, env);
+    }
+
+    // API: 获取UA详情
+    if (pathname === '/api_ua_detail' && request.method === 'GET') {
+      return await handleUADetail(request, env);
+    }
+
+    // API: 导出日志
+    if (pathname === '/api_export_logs' && request.method === 'GET') {
+      return await handleExportLogs(request, env);
+    }
+
+    // API: 清空日志
+    if (pathname === '/api_clear_logs' && request.method === 'POST') {
+      return await handleClearLogs(request, env);
+    }
+
     // 动态加密文件下载 - 记录访问日志
     if (pathname.startsWith('/z/')) {
       const filename = pathname.substring(3);
@@ -76,6 +96,7 @@ export async function onRequest(context) {
     });
 
   } catch (error) {
+    console.error('全局错误:', error);
     return new Response(`Error: ${error.message}`, { 
       status: 500,
       headers: {
@@ -393,6 +414,7 @@ async function handleManagementPage(request, env) {
       },
     });
   } catch (error) {
+    console.error('管理页面错误:', error);
     return new Response(`管理页面错误: ${error.message}`, { 
       status: 500,
       headers: {
@@ -432,6 +454,8 @@ async function handleLogsPage(request, env) {
     // 获取所有日志
     const allLogs = await env.MY_TEXT_STORAGE.list({ prefix: 'log_' });
     const logs = [];
+    
+    console.log(`找到日志键数量: ${allLogs.keys.length}`);
     
     for (const key of allLogs.keys) {
       try {
@@ -497,6 +521,7 @@ async function handleLogsPage(request, env) {
       },
     });
   } catch (error) {
+    console.error('日志页面错误:', error);
     return new Response(`日志页面错误: ${error.message}`, { 
       status: 500,
       headers: {
@@ -525,15 +550,15 @@ async function getLogsHTML(logs, currentPage, totalPages, stats, filterType, fil
       // 提取播放器特征
       const userAgent = log.userAgent || '';
       let playerType = '未知';
-      if (userAgent.includes('tvbox') || userAgent.includes('tv-box')) {
+      if (userAgent.toLowerCase().includes('tvbox') || userAgent.toLowerCase().includes('tv-box')) {
         playerType = 'TVBox';
-      } else if (userAgent.includes('ku9') || userAgent.includes('酷9')) {
+      } else if (userAgent.toLowerCase().includes('ku9') || userAgent.includes('酷9')) {
         playerType = '酷9';
-      } else if (userAgent.includes('kodi')) {
+      } else if (userAgent.toLowerCase().includes('kodi')) {
         playerType = 'Kodi';
-      } else if (userAgent.includes('vlc')) {
+      } else if (userAgent.toLowerCase().includes('vlc')) {
         playerType = 'VLC';
-      } else if (userAgent.includes('mozilla') || userAgent.includes('chrome')) {
+      } else if (userAgent.toLowerCase().includes('mozilla') || userAgent.toLowerCase().includes('chrome')) {
         playerType = '浏览器';
       }
       
@@ -552,7 +577,7 @@ async function getLogsHTML(logs, currentPage, totalPages, stats, filterType, fil
   <td>${log.reason || 'N/A'}</td>
   <td>
     <button class="action-btn detail-btn" onclick="showLogDetail('${log.id.replace(/'/g, "\\'")}')">详情</button>
-    <button class="action-btn copy-btn" onclick="copyUAToClipboard('${userAgent.replace(/'/g, "\\'")}')">复制UA</button>
+    <button class="action-btn copy-btn" onclick="copyUAToClipboard('${userAgent.replace(/'/g, "\\'").replace(/"/g, '&quot;')}')">复制UA</button>
   </td>
 </tr>
 `;
@@ -646,12 +671,21 @@ body{font-family:"Segoe UI",Tahoma,sans-serif;font-size:14px;color:#333;margin:0
 .clear-logs-btn:hover{background:#c9302c;}
 .export-btn{background:#5cb85c;color:white;border:none;padding:8px 15px;border-radius:4px;cursor:pointer;margin-left:10px;}
 .export-btn:hover{background:#4cae4c;}
+.debug-info{background:#f8f9fa;border:1px solid #ddd;border-radius:5px;padding:10px;margin:15px 0;font-size:12px;color:#666;}
+.debug-info h4{margin-top:0;color:#333;}
 </style>
 </head>
 
 <body>
 <div class="logs-container">
   <a href="./search.html?manage_token=${managementToken}" class="back-link">← 返回管理页面</a>
+  
+  <div class="debug-info">
+    <h4>调试信息：</h4>
+    <div>找到的日志总数：${stats.total} 条</div>
+    <div>当前显示：${logs.length} 条（第${currentPage}/${totalPages}页）</div>
+    <div>过滤器：${filterType} = "${filterValue}"</div>
+  </div>
   
   <div class="stats-grid">
     <div class="stat-card">
@@ -845,6 +879,7 @@ function showUADetail(logId) {
     })
     .catch(error => {
       console.error('加载UA详情失败:', error);
+      alert('加载UA详情失败');
     });
 }
 
@@ -964,7 +999,7 @@ function submitLogin() {
 </html>`;
 }
 
-// 搜索管理页面 HTML (search.php) - 保持不变
+// 搜索管理页面 HTML (search.php)
 async function getSearchHTML(request, env, managementToken) {
   const url = new URL(request.url);
   const formData = await parseFormData(request);
@@ -1060,7 +1095,13 @@ async function getSearchHTML(request, env, managementToken) {
         await env.MY_TEXT_STORAGE.put('pwd_' + safeFilename, password);
         const metadata = {
           ctime: Date.now(),
-          size: content.length
+          mtime: Date.now(),
+          size: content.length,
+          encryption: {
+            enabled: true,
+            algorithm: 'dynamic-time',
+            last_encrypted: Math.floor(Date.now() / 60000)
+          }
         };
         await env.MY_TEXT_STORAGE.put('meta_' + safeFilename, JSON.stringify(metadata));
         
@@ -1110,6 +1151,7 @@ async function getSearchHTML(request, env, managementToken) {
             const fileContent = await env.MY_TEXT_STORAGE.get(key.name);
             metadata = {
               ctime: Date.now(),
+              mtime: Date.now(),
               size: fileContent ? fileContent.length : 0
             };
             await env.MY_TEXT_STORAGE.put(metaKey, JSON.stringify(metadata));
@@ -1119,6 +1161,7 @@ async function getSearchHTML(request, env, managementToken) {
           const fileContent = await env.MY_TEXT_STORAGE.get(key.name);
           metadata = {
             ctime: Date.now(),
+            mtime: Date.now(),
             size: fileContent ? fileContent.length : 0
           };
         }
@@ -1126,7 +1169,8 @@ async function getSearchHTML(request, env, managementToken) {
         fileEntries.push({
           name: filename,
           size: metadata.size || 0,
-          ctime: metadata.ctime || Date.now()
+          ctime: metadata.ctime || Date.now(),
+          mtime: metadata.mtime || Date.now()
         });
       }
     }
@@ -1137,6 +1181,8 @@ async function getSearchHTML(request, env, managementToken) {
     let result = 0;
     if (sortField === 'ctime') {
       result = a.ctime - b.ctime;
+    } else if (sortField === 'mtime') {
+      result = a.mtime - b.mtime;
     } else if (sortField === 'size') {
       result = a.size - b.size;
     } else {
@@ -1330,6 +1376,7 @@ ${messages.map(function(msg) { return '<div class="message">' + msg + '</div>'; 
 <input type="submit" name="submit_search" class="search-btn" value="搜索">
 <input type="submit" name="show_all" class="search-btn" value="显示全部文件">
 <button type="button" class="search-btn" onclick="toggleSort('ctime')">时间排序 (${sortField==='ctime'?(sortOrder==='asc'?'↑':'↓'):'-'})</button>
+<button type="button" class="search-btn" onclick="toggleSort('mtime')">修改时间 (${sortField==='mtime'?(sortOrder==='asc'?'↑':'↓'):'-'})</button>
 <button type="button" class="search-btn" onclick="toggleSort('size')">大小排序 (${sortField==='size'?(sortOrder==='asc'?'↑':'↓'):'-'})</button>
 <button type="button" class="search-btn" onclick="editFile('', '${managementToken}')">🆕 新建文件</button>
 <button type="button" class="search-btn" onclick="uploadFiles('${managementToken}')">📤 上传文件</button>
@@ -1836,7 +1883,7 @@ function dynamicDecrypt(encrypted, timestamp) {
   return decrypted;
 }
 
-// 记录访问日志函数
+// 记录访问日志函数 - 增强版，强制同步存储
 async function logAccess(env, request, filename, status, reason, userAgent, ip) {
   try {
     const timestamp = Date.now();
@@ -1844,9 +1891,9 @@ async function logAccess(env, request, filename, status, reason, userAgent, ip) 
     
     const logData = {
       timestamp,
-      filename,
-      status, // 'allowed' 或 'blocked'
-      reason,
+      filename: filename || 'unknown',
+      status, // 'allowed' 或 'blocked' 或 'error'
+      reason: reason || 'unknown',
       userAgent: userAgent || request.headers.get('User-Agent') || 'unknown',
       ip: ip || request.headers.get('CF-Connecting-IP') || request.headers.get('X-Forwarded-For') || 'unknown',
       referer: request.headers.get('Referer') || '',
@@ -1855,94 +1902,116 @@ async function logAccess(env, request, filename, status, reason, userAgent, ip) 
       method: request.method
     };
     
-    // 异步保存日志，不等待完成
-    env.MY_TEXT_STORAGE.put(logId, JSON.stringify(logData))
-      .catch(error => console.error('保存日志失败:', error));
-      
+    // 强制同步等待存储完成
+    await env.MY_TEXT_STORAGE.put(logId, JSON.stringify(logData), { 
+      expirationTtl: 2592000 // 30天过期
+    });
+    
+    console.log('✅ 日志已保存:', logId, filename, status, reason);
+    
+    return true;
   } catch (error) {
-    console.error('记录访问日志失败:', error);
+    console.error('❌ 记录访问日志失败:', error);
+    return false;
   }
 }
 
 // 读取文件处理 (read0.php)
 async function handleReadFile(request, env) {
-  const url = new URL(request.url);
-  const filename = url.searchParams.get('filename');
-  const password = url.searchParams.get('password');
+  try {
+    const url = new URL(request.url);
+    const filename = url.searchParams.get('filename');
+    const password = url.searchParams.get('password');
 
-  if (!filename || filename.trim() === '') {
-    return new Response(JSON.stringify({error: '请提供文件名'}), {
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-        'X-Content-Type-Options': 'nosniff'
-      }
-    });
-  }
-
-  const safeFilename = sanitizeFilename(filename.trim());
-  
-  // 检查文件是否存在
-  const fileContent = await env.MY_TEXT_STORAGE.get('file_' + safeFilename);
-  if (!fileContent) {
-    return new Response(JSON.stringify({error: '文件不存在'}), {
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-        'X-Content-Type-Options': 'nosniff'
-      }
-    });
-  }
-
-  // 检查密码
-  const storedPassword = await env.MY_TEXT_STORAGE.get('pwd_' + safeFilename);
-  if (!storedPassword) {
-    return new Response(JSON.stringify({error: '密码文件不存在'}), {
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-        'X-Content-Type-Options': 'nosniff'
-      }
-    });
-  }
-
-  // 验证密码
-  if (!password || password.trim() === '') {
-    return new Response(JSON.stringify({error: '请提供密码'}), {
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-        'X-Content-Type-Options': 'nosniff'
-      }
-    });
-  }
-
-  if (storedPassword !== password.trim()) {
-    return new Response(JSON.stringify({error: '密码错误'}), {
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-        'X-Content-Type-Options': 'nosniff'
-      }
-    });
-  }
-
-  // 构建返回结果（明文，用于编辑）
-  const domain = request.headers.get('host');
-  const fileLink = 'https://' + domain + '/z/' + encodeURIComponent(safeFilename);
-
-  const response = {
-    content: fileContent,
-    fileLink: fileLink
-  };
-
-  return new Response(JSON.stringify(response), {
-    headers: {
-      'Content-Type': 'application/json',
-      'Access-Control-Allow-Origin': '*',
-      'X-Content-Type-Options': 'nosniff'
+    if (!filename || filename.trim() === '') {
+      return new Response(JSON.stringify({error: '请提供文件名'}), {
+        status: 400,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+          'X-Content-Type-Options': 'nosniff'
+        }
+      });
     }
-  });
+
+    const safeFilename = sanitizeFilename(filename.trim());
+    
+    // 检查文件是否存在
+    const fileContent = await env.MY_TEXT_STORAGE.get('file_' + safeFilename);
+    if (!fileContent) {
+      return new Response(JSON.stringify({error: '文件不存在'}), {
+        status: 404,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+          'X-Content-Type-Options': 'nosniff'
+        }
+      });
+    }
+
+    // 检查密码
+    const storedPassword = await env.MY_TEXT_STORAGE.get('pwd_' + safeFilename);
+    if (!storedPassword) {
+      return new Response(JSON.stringify({error: '密码文件不存在'}), {
+        status: 404,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+          'X-Content-Type-Options': 'nosniff'
+        }
+      });
+    }
+
+    // 验证密码
+    if (!password || password.trim() === '') {
+      return new Response(JSON.stringify({error: '请提供密码'}), {
+        status: 400,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+          'X-Content-Type-Options': 'nosniff'
+        }
+      });
+    }
+
+    if (storedPassword !== password.trim()) {
+      return new Response(JSON.stringify({error: '密码错误'}), {
+        status: 401,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+          'X-Content-Type-Options': 'nosniff'
+        }
+      });
+    }
+
+    // 构建返回结果（明文，用于编辑）
+    const domain = request.headers.get('host') || 'localhost';
+    const fileLink = 'https://' + domain + '/z/' + encodeURIComponent(safeFilename);
+
+    const response = {
+      content: fileContent,
+      fileLink: fileLink
+    };
+
+    return new Response(JSON.stringify(response), {
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+        'X-Content-Type-Options': 'nosniff'
+      }
+    });
+  } catch (error) {
+    console.error('读取文件错误:', error);
+    return new Response(JSON.stringify({error: `读取文件失败: ${error.message}`}), {
+      status: 500,
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+        'X-Content-Type-Options': 'nosniff'
+      }
+    });
+  }
 }
 
 // 安全文件下载处理 - 增强版（增加日志记录）
@@ -1991,6 +2060,8 @@ async function handleSecureFileDownload(filename, request, env) {
         contentType = 'text/html; charset=utf-8';
       } else if (safeFilename.endsWith('.xml')) {
         contentType = 'application/xml; charset=utf-8';
+      } else if (safeFilename.endsWith('.php')) {
+        contentType = 'text/plain; charset=utf-8';
       }
       
       return new Response(content, {
@@ -2133,6 +2204,8 @@ async function handleSecureFileDownload(filename, request, env) {
       contentType = 'text/html; charset=utf-8';
     } else if (safeFilename.endsWith('.xml')) {
       contentType = 'application/xml; charset=utf-8';
+    } else if (safeFilename.endsWith('.php')) {
+      contentType = 'text/plain; charset=utf-8';
     }
     
     // 返回加密内容
@@ -2158,6 +2231,7 @@ async function handleSecureFileDownload(filename, request, env) {
                    request.headers.get('User-Agent'), 
                    request.headers.get('CF-Connecting-IP'));
     
+    console.error('安全文件下载错误:', error);
     return new Response(`下载错误: ${error.message}`, { 
       status: 500,
       headers: {
@@ -2206,6 +2280,7 @@ async function handleGetEncryptionKey(request, env) {
     });
     
   } catch (error) {
+    console.error('获取加密密钥错误:', error);
     return new Response(JSON.stringify({error: error.message}), {
       status: 500,
       headers: {
@@ -2231,6 +2306,7 @@ async function handleUploadFile(request, env) {
         success: false,
         error: '缺少文件名'
       }), {
+        status: 400,
         headers: {
           'Content-Type': 'application/json',
           'Access-Control-Allow-Origin': '*',
@@ -2244,6 +2320,7 @@ async function handleUploadFile(request, env) {
         success: false,
         error: '文件内容不能为空'
       }), {
+        status: 400,
         headers: {
           'Content-Type': 'application/json',
           'Access-Control-Allow-Origin': '*',
@@ -2273,7 +2350,7 @@ async function handleUploadFile(request, env) {
       };
       await env.MY_TEXT_STORAGE.put('meta_' + safeFilename, JSON.stringify(metadata));
 
-      const domain = request.headers.get('host');
+      const domain = request.headers.get('host') || 'localhost';
       const link = 'https://' + domain + '/z/' + encodeURIComponent(safeFilename);
 
       return new Response(JSON.stringify({
@@ -2292,10 +2369,12 @@ async function handleUploadFile(request, env) {
         }
       });
     } catch (error) {
+      console.error('文件保存失败:', error);
       return new Response(JSON.stringify({
         success: false,
         error: '文件保存失败: ' + error.message
       }), {
+        status: 500,
         headers: {
           'Content-Type': 'application/json',
           'Access-Control-Allow-Origin': '*',
@@ -2304,10 +2383,12 @@ async function handleUploadFile(request, env) {
       });
     }
   } catch (error) {
+    console.error('解析表单数据失败:', error);
     return new Response(JSON.stringify({
       success: false,
       error: '解析表单数据失败: ' + error.message
     }), {
+      status: 500,
       headers: {
         'Content-Type': 'application/json',
         'Access-Control-Allow-Origin': '*',
@@ -2319,34 +2400,18 @@ async function handleUploadFile(request, env) {
 
 // 更新密码处理接口
 async function handleUpdatePassword(request, env) {
-  const formData = await parseFormData(request);
-  
-  const filename = formData.filename;
-  const newPassword = formData.new_password;
-
-  if (!filename || !newPassword) {
-    return new Response(JSON.stringify({
-      success: false,
-      error: '缺少 filename 或 new_password'
-    }), {
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-        'X-Content-Type-Options': 'nosniff'
-      }
-    });
-  }
-
-  const safeFilename = sanitizeFilename(filename.trim());
-  
   try {
-    // 检查文件是否存在
-    const fileExists = await env.MY_TEXT_STORAGE.get('file_' + safeFilename);
-    if (!fileExists) {
+    const formData = await parseFormData(request);
+    
+    const filename = formData.filename;
+    const newPassword = formData.new_password;
+
+    if (!filename || !newPassword) {
       return new Response(JSON.stringify({
         success: false,
-        error: '文件不存在'
+        error: '缺少 filename 或 new_password'
       }), {
+        status: 400,
         headers: {
           'Content-Type': 'application/json',
           'Access-Control-Allow-Origin': '*',
@@ -2355,27 +2420,372 @@ async function handleUpdatePassword(request, env) {
       });
     }
 
-    // 更新密码
-    await env.MY_TEXT_STORAGE.put('pwd_' + safeFilename, newPassword.trim());
+    const safeFilename = sanitizeFilename(filename.trim());
+    
+    try {
+      // 检查文件是否存在
+      const fileExists = await env.MY_TEXT_STORAGE.get('file_' + safeFilename);
+      if (!fileExists) {
+        return new Response(JSON.stringify({
+          success: false,
+          error: '文件不存在'
+        }), {
+          status: 404,
+          headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+            'X-Content-Type-Options': 'nosniff'
+          }
+        });
+      }
 
+      // 更新密码
+      await env.MY_TEXT_STORAGE.put('pwd_' + safeFilename, newPassword.trim());
+
+      return new Response(JSON.stringify({
+        success: true,
+        message: '密码更新成功'
+      }), {
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+          'X-Content-Type-Options': 'nosniff'
+        }
+      });
+    } catch (error) {
+      console.error('密码更新失败:', error);
+      return new Response(JSON.stringify({
+        success: false,
+        error: '密码更新失败: ' + error.message
+      }), {
+        status: 500,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+          'X-Content-Type-Options': 'nosniff'
+        }
+      });
+    }
+  } catch (error) {
+    console.error('解析表单数据失败:', error);
     return new Response(JSON.stringify({
-      success: true,
-      message: '密码更新成功'
+      success: false,
+      error: '解析表单数据失败: ' + error.message
     }), {
+      status: 500,
       headers: {
         'Content-Type': 'application/json',
         'Access-Control-Allow-Origin': '*',
         'X-Content-Type-Options': 'nosniff'
       }
     });
-  } catch (error) {
+  }
+}
+
+// 获取日志详情API
+async function handleLogDetail(request, env) {
+  try {
+    const url = new URL(request.url);
+    const logId = url.searchParams.get('log_id');
+    const managementToken = url.searchParams.get('manage_token');
+    const expectedToken = await env.MY_TEXT_STORAGE.get('management_token') || 'default_manage_token_2024';
+    
+    // 检查管理令牌
+    if (!managementToken || managementToken !== expectedToken) {
+      return new Response(JSON.stringify({
+        error: '未授权访问'
+      }), {
+        status: 401,
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Content-Type-Options': 'nosniff'
+        }
+      });
+    }
+    
+    if (!logId) {
+      return new Response(JSON.stringify({
+        error: '缺少日志ID'
+      }), {
+        status: 400,
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Content-Type-Options': 'nosniff'
+        }
+      });
+    }
+    
+    const logKey = `log_${logId}`;
+    const logData = await env.MY_TEXT_STORAGE.get(logKey);
+    
+    if (!logData) {
+      return new Response(JSON.stringify({
+        error: '日志不存在'
+      }), {
+        status: 404,
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Content-Type-Options': 'nosniff'
+        }
+      });
+    }
+    
+    const log = JSON.parse(logData);
+    log.id = logId;
+    
     return new Response(JSON.stringify({
-      success: false,
-      error: '密码更新失败: ' + error.message
+      log: log
     }), {
       headers: {
         'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
+        'X-Content-Type-Options': 'nosniff'
+      }
+    });
+  } catch (error) {
+    console.error('获取日志详情错误:', error);
+    return new Response(JSON.stringify({
+      error: `获取日志详情失败: ${error.message}`
+    }), {
+      status: 500,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Content-Type-Options': 'nosniff'
+      }
+    });
+  }
+}
+
+// 获取UA详情API
+async function handleUADetail(request, env) {
+  try {
+    const url = new URL(request.url);
+    const logId = url.searchParams.get('log_id');
+    const managementToken = url.searchParams.get('manage_token');
+    const expectedToken = await env.MY_TEXT_STORAGE.get('management_token') || 'default_manage_token_2024';
+    
+    // 检查管理令牌
+    if (!managementToken || managementToken !== expectedToken) {
+      return new Response(JSON.stringify({
+        error: '未授权访问'
+      }), {
+        status: 401,
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Content-Type-Options': 'nosniff'
+        }
+      });
+    }
+    
+    if (!logId) {
+      return new Response(JSON.stringify({
+        error: '缺少日志ID'
+      }), {
+        status: 400,
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Content-Type-Options': 'nosniff'
+        }
+      });
+    }
+    
+    const logKey = `log_${logId}`;
+    const logData = await env.MY_TEXT_STORAGE.get(logKey);
+    
+    if (!logData) {
+      return new Response(JSON.stringify({
+        error: '日志不存在'
+      }), {
+        status: 404,
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Content-Type-Options': 'nosniff'
+        }
+      });
+    }
+    
+    const log = JSON.parse(logData);
+    log.id = logId;
+    
+    return new Response(JSON.stringify({
+      log: log
+    }), {
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Content-Type-Options': 'nosniff'
+      }
+    });
+  } catch (error) {
+    console.error('获取UA详情错误:', error);
+    return new Response(JSON.stringify({
+      error: `获取UA详情失败: ${error.message}`
+    }), {
+      status: 500,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Content-Type-Options': 'nosniff'
+      }
+    });
+  }
+}
+
+// 导出日志API
+async function handleExportLogs(request, env) {
+  try {
+    const url = new URL(request.url);
+    const managementToken = url.searchParams.get('manage_token');
+    const expectedToken = await env.MY_TEXT_STORAGE.get('management_token') || 'default_manage_token_2024';
+    
+    // 检查管理令牌
+    if (!managementToken || managementToken !== expectedToken) {
+      return new Response('未授权访问', {
+        status: 401,
+        headers: {
+          'Content-Type': 'text/plain; charset=utf-8',
+          'X-Content-Type-Options': 'nosniff'
+        }
+      });
+    }
+    
+    const filterType = url.searchParams.get('filter_type') || 'all';
+    const filterValue = url.searchParams.get('filter_value') || '';
+    
+    // 获取所有日志
+    const allLogs = await env.MY_TEXT_STORAGE.list({ prefix: 'log_' });
+    const logs = [];
+    
+    for (const key of allLogs.keys) {
+      try {
+        const logData = await env.MY_TEXT_STORAGE.get(key.name);
+        if (logData) {
+          const log = JSON.parse(logData);
+          
+          // 应用过滤器
+          let includeLog = true;
+          
+          if (filterType !== 'all' && filterValue) {
+            if (filterType === 'filename' && !log.filename.includes(filterValue)) {
+              includeLog = false;
+            } else if (filterType === 'user_agent' && !log.userAgent.includes(filterValue)) {
+              includeLog = false;
+            } else if (filterType === 'ip' && !log.ip.includes(filterValue)) {
+              includeLog = false;
+            } else if (filterType === 'status' && !log.status.includes(filterValue)) {
+              includeLog = false;
+            }
+          }
+          
+          if (includeLog) {
+            logs.push(log);
+          }
+        }
+      } catch (error) {
+        console.error('解析日志失败:', key.name, error);
+      }
+    }
+    
+    // 按时间倒序排序
+    logs.sort((a, b) => b.timestamp - a.timestamp);
+    
+    // 转换为CSV格式
+    const csvRows = [];
+    
+    // 表头
+    csvRows.push(['时间', '状态', '文件名', 'IP地址', 'User-Agent', '原因', 'Referer', 'Accept', 'URL', '方法'].join(','));
+    
+    // 数据行
+    for (const log of logs) {
+      const time = new Date(log.timestamp).toISOString();
+      const status = log.status;
+      const filename = `"${(log.filename || '').replace(/"/g, '""')}"`;
+      const ip = log.ip || '';
+      const userAgent = `"${(log.userAgent || '').replace(/"/g, '""')}"`;
+      const reason = `"${(log.reason || '').replace(/"/g, '""')}"`;
+      const referer = `"${(log.referer || '').replace(/"/g, '""')}"`;
+      const accept = `"${(log.accept || '').replace(/"/g, '""')}"`;
+      const url = `"${(log.url || '').replace(/"/g, '""')}"`;
+      const method = log.method || '';
+      
+      csvRows.push([time, status, filename, ip, userAgent, reason, referer, accept, url, method].join(','));
+    }
+    
+    const csvContent = csvRows.join('\n');
+    const exportDate = new Date().toISOString().split('T')[0];
+    const filename = `访问日志_${exportDate}_${logs.length}条.csv`;
+    
+    return new Response(csvContent, {
+      headers: {
+        'Content-Type': 'text/csv; charset=utf-8',
+        'Content-Disposition': `attachment; filename="${filename}"`,
+        'X-Content-Type-Options': 'nosniff'
+      }
+    });
+  } catch (error) {
+    console.error('导出日志错误:', error);
+    return new Response(`导出日志失败: ${error.message}`, {
+      status: 500,
+      headers: {
+        'Content-Type': 'text/plain; charset=utf-8',
+        'X-Content-Type-Options': 'nosniff'
+      }
+    });
+  }
+}
+
+// 清空日志API
+async function handleClearLogs(request, env) {
+  try {
+    const url = new URL(request.url);
+    const managementToken = url.searchParams.get('manage_token');
+    const expectedToken = await env.MY_TEXT_STORAGE.get('management_token') || 'default_manage_token_2024';
+    
+    // 检查管理令牌
+    if (!managementToken || managementToken !== expectedToken) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: '未授权访问'
+      }), {
+        status: 401,
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Content-Type-Options': 'nosniff'
+        }
+      });
+    }
+    
+    // 获取所有日志键
+    const allLogs = await env.MY_TEXT_STORAGE.list({ prefix: 'log_' });
+    let deletedCount = 0;
+    
+    // 批量删除日志
+    for (const key of allLogs.keys) {
+      try {
+        await env.MY_TEXT_STORAGE.delete(key.name);
+        deletedCount++;
+      } catch (error) {
+        console.error('删除日志失败:', key.name, error);
+      }
+    }
+    
+    console.log(`已清空 ${deletedCount} 条日志`);
+    
+    return new Response(JSON.stringify({
+      success: true,
+      message: `已清空 ${deletedCount} 条日志`
+    }), {
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Content-Type-Options': 'nosniff'
+      }
+    });
+  } catch (error) {
+    console.error('清空日志错误:', error);
+    return new Response(JSON.stringify({
+      success: false,
+      error: `清空日志失败: ${error.message}`
+    }), {
+      status: 500,
+      headers: {
+        'Content-Type': 'application/json',
         'X-Content-Type-Options': 'nosniff'
       }
     });
