@@ -1,4 +1,4 @@
-// Cloudflare Pages Functions - 终极安全文本存储系统 V3
+// Cloudflare Pages Functions - 增强安全文本存储系统 V2
 export async function onRequest(context) {
   const { request, env } = context;
   const url = new URL(request.url);
@@ -10,7 +10,7 @@ export async function onRequest(context) {
       headers: {
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With, X-Client-Time, X-Encryption-Key, X-Management-Access, X-Security-Token',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With, X-Client-Time, X-Encryption-Key, X-Management-Access',
         'Access-Control-Max-Age': '86400',
         'Vary': 'Origin'
       }
@@ -24,14 +24,12 @@ export async function onRequest(context) {
         headers: { 
           'content-type': 'text/html;charset=UTF-8',
           'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'X-Content-Type-Options': 'nosniff',
-          'X-Frame-Options': 'DENY',
-          'X-XSS-Protection': '1; mode=block'
+          'X-Content-Type-Options': 'nosniff'
         },
       });
     }
 
-    // 搜索管理页面
+    // 搜索管理页面 - 修复：使用单独的安全验证
     if (pathname === '/search.html' || pathname === '/search.php') {
       return await handleManagementPage(request, env);
     }
@@ -62,24 +60,17 @@ export async function onRequest(context) {
       return await handleSecureFileDownload(filename, request, env);
     }
 
-    // 安全验证接口 - 新增
-    if (pathname === '/verify.php' && request.method === 'POST') {
-      return await handleSecurityVerification(request, env);
-    }
-
     // 默认返回主页
     return new Response(await getIndexHTML(), {
       headers: { 
         'content-type': 'text/html;charset=UTF-8',
         'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'X-Content-Type-Options': 'nosniff',
-        'X-Frame-Options': 'DENY'
+        'X-Content-Type-Options': 'nosniff'
       },
     });
 
   } catch (error) {
-    console.error('System error:', error);
-    return new Response('系统错误', { 
+    return new Response(`Error: ${error.message}`, { 
       status: 500,
       headers: {
         'Content-Type': 'text/plain; charset=utf-8',
@@ -89,669 +80,1749 @@ export async function onRequest(context) {
   }
 }
 
-// ========== 核心加密模块 ==========
-
-// 生成随机密钥
-function generateRandomKey(length = 32) {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()';
-  let key = '';
-  for (let i = 0; i < length; i++) {
-    key += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return key;
-}
-
-// 多层AES加密
-async function aesEncrypt(content, password) {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(content);
-  
-  // 生成盐和IV
-  const salt = crypto.getRandomValues(new Uint8Array(16));
-  const iv = crypto.getRandomValues(new Uint8Array(12));
-  
-  // 创建密钥
-  const keyMaterial = await crypto.subtle.importKey(
-    'raw',
-    encoder.encode(password),
-    { name: 'PBKDF2' },
-    false,
-    ['deriveKey']
-  );
-  
-  const key = await crypto.subtle.deriveKey(
-    {
-      name: 'PBKDF2',
-      salt: salt,
-      iterations: 100000,
-      hash: 'SHA-256'
-    },
-    keyMaterial,
-    { name: 'AES-GCM', length: 256 },
-    false,
-    ['encrypt']
-  );
-  
-  // 加密数据
-  const encrypted = await crypto.subtle.encrypt(
-    { name: 'AES-GCM', iv: iv },
-    key,
-    data
-  );
-  
-  // 组合结果: salt + iv + encrypted
-  const result = new Uint8Array(salt.length + iv.length + encrypted.byteLength);
-  result.set(salt, 0);
-  result.set(iv, salt.length);
-  result.set(new Uint8Array(encrypted), salt.length + iv.length);
-  
-  return btoa(String.fromCharCode(...result));
-}
-
-// 多层AES解密
-async function aesDecrypt(encrypted, password) {
-  try {
-    const decoder = new TextDecoder();
-    const encoder = new TextEncoder();
-    
-    // 解码Base64
-    const binary = atob(encrypted);
-    const data = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) {
-      data[i] = binary.charCodeAt(i);
-    }
-    
-    // 提取盐、IV和加密数据
-    const salt = data.slice(0, 16);
-    const iv = data.slice(16, 28);
-    const encryptedData = data.slice(28);
-    
-    // 创建密钥
-    const keyMaterial = await crypto.subtle.importKey(
-      'raw',
-      encoder.encode(password),
-      { name: 'PBKDF2' },
-      false,
-      ['deriveKey']
-    );
-    
-    const key = await crypto.subtle.deriveKey(
-      {
-        name: 'PBKDF2',
-        salt: salt,
-        iterations: 100000,
-        hash: 'SHA-256'
-      },
-      keyMaterial,
-      { name: 'AES-GCM', length: 256 },
-      false,
-      ['decrypt']
-    );
-    
-    // 解密数据
-    const decrypted = await crypto.subtle.decrypt(
-      { name: 'AES-GCM', iv: iv },
-      key,
-      encryptedData
-    );
-    
-    return decoder.decode(decrypted);
-  } catch (error) {
-    throw new Error('解密失败: 密码错误或数据损坏');
-  }
-}
-
-// 汉字混淆加密
-function chineseConfusionEncrypt(content) {
-  const chineseChars = '的一是在不了有和人这中大为上个国我以要他时来用们生到作地于出就分对成会可主发年动同工也能下过子说产种面而方后多定行学法所民得经十三之进着等部度家电力里如水化高自二理起小物现实加量都两体制机当使点从业本去把性好应开它合还因由其些然前外天政四日那社义事平形相全表间样与关各重新线内数正心反你明看原又么利比或但质气第向道命此变条只没结解问意建月公无系军很情者最立代想已通并提直题党程展五果料象员革位入常文总次品式活设及管特件长求老头基资边流路级少图山统接知较将组见计别她手角期根论运农指几九区强放决西被干做必战先回则任取据处队南给色光门即保治北造百规热领七海口东导器压志世金增争济阶油思术极交受联什认六共权收证改清己美再采转更单风切打白教速花带安场身车例真务具万每目至达走积示议声报斗完类八离华名确才科张信马节话米整空元况今集温传土许步群广石记需段研界拉林律叫且究观越织装影算低持音众书布复容儿须际商非验连断深难近矿千周委素技备半办青省列习响约支般史感劳便团往酸历市克何除消构府称太准精值号率族维划选标写存候毛亲快效斯院查江型眼王按格养易置派层片始却专状育厂京识适属圆包火住调满县局照参红细引听该铁价严';
-  
-  let encrypted = '';
-  for (let i = 0; i < content.length; i++) {
-    const char = content.charAt(i);
-    const code = content.charCodeAt(i);
-    
-    // 将字符混淆为汉字
-    const randomChinese = chineseChars.charAt(Math.floor(Math.random() * chineseChars.length));
-    const pos = chineseChars.indexOf(char) !== -1 ? chineseChars.indexOf(char) : i;
-    
-    // 创建混淆字符
-    let encryptedChar = '';
-    if (code < 256) {
-      // ASCII字符：转换为汉字位置
-      const chineseIndex = (code + i) % chineseChars.length;
-      encryptedChar = chineseChars.charAt(chineseIndex);
-    } else {
-      // 非ASCII字符：随机混淆
-      encryptedChar = randomChinese;
-    }
-    
-    // 添加位置标记
-    const marker = String.fromCharCode(0x3000 + (i % 100));
-    encrypted += encryptedChar + marker;
-  }
-  
-  return encrypted;
-}
-
-// 汉字解密
-function chineseConfusionDecrypt(encrypted) {
-  const chineseChars = '的一是在不了有和人这中大为上个国我以要他时来用们生到作地于出就分对成会可主发年动同工也能下过子说产种面而方后多定行学法所民得经十三之进着等部度家电力里如水化高自二理起小物现实加量都两体制机当使点从业本去把性好应开它合还因由其些然前外天政四日那社义事平形相全表间样与关各重新线内数正心反你明看原又么利比或但质气第向道命此变条只没结解问意建月公无系军很情者最立代想已通并提直题党程展五果料象员革位入常文总次品式活设及管特件长求老头基资边流路级少图山统接知较将组见计别她手角期根论运农指几九区强放决西被干做必战先回则任取据处队南给色光门即保治北造百规热领七海口东导器压志世金增争济阶油思术极交受联什认六共权收证改清己美再采转更单风切打白教速花带安场身车例真务具万每目至达走积示议声报斗完类八离华名确才科张信马节话米整空元况今集温传土许步群广石记需段研界拉林律叫且究观越织装影算低持音众书布复容儿须际商非验连断深难近矿千周委素技备半办青省列习响约支般史感劳便团往酸历市克何除消构府称太准精值号率族维划选标写存候毛亲快效斯院查江型眼王按格养易置派层片始却专状育厂京识适属圆包火住调满县局照参红细引听该铁价严';
-  
-  let decrypted = '';
-  for (let i = 0; i < encrypted.length; i += 2) {
-    if (i + 1 >= encrypted.length) break;
-    
-    const encryptedChar = encrypted.charAt(i);
-    const marker = encrypted.charAt(i + 1);
-    
-    // 从标记恢复原始位置
-    const originalIndex = marker.charCodeAt(0) - 0x3000;
-    const charIndex = chineseChars.indexOf(encryptedChar);
-    
-    if (charIndex !== -1) {
-      // 还原ASCII字符
-      let originalChar = String.fromCharCode((charIndex - originalIndex + 256) % 256);
-      decrypted += originalChar;
-    } else {
-      decrypted += '?';
-    }
-  }
-  
-  return decrypted;
-}
-
-// 动态时间混淆加密
-function timeBasedConfusionEncrypt(content) {
-  const now = new Date();
-  const timeKey = Math.floor(now.getTime() / 60000); // 每分钟变化
-  const dateKey = now.getFullYear() * 10000 + (now.getMonth() + 1) * 100 + now.getDate();
-  
-  // 生成混淆矩阵
-  const confusionMatrix = generateConfusionMatrix(timeKey, dateKey);
-  
-  let encrypted = '';
-  for (let i = 0; i < content.length; i++) {
-    const charCode = content.charCodeAt(i);
-    const matrixPos = i % confusionMatrix.length;
-    
-    // 使用混淆矩阵进行加密
-    const encryptedCharCode = charCode ^ confusionMatrix[matrixPos];
-    encrypted += String.fromCharCode(encryptedCharCode);
-  }
-  
-  // 添加时间验证标记
-  const timeMark = timeKey.toString(36) + '_' + dateKey.toString(36);
-  return btoa(encrypted + '|' + timeMark);
-}
-
-// 生成混淆矩阵
-function generateConfusionMatrix(timeKey, dateKey) {
-  const matrix = new Array(256);
-  const seed = (timeKey * 6364136223846793005n + 1442695040888963407n) & BigInt(0xffffffffffffffff);
-  
-  for (let i = 0; i < 256; i++) {
-    const n = Number(seed >> BigInt(i * 8)) & 0xff;
-    matrix[i] = (n ^ dateKey ^ i) & 0xff;
-  }
-  
-  return matrix;
-}
-
-// ========== 安全检测模块 ==========
-
-// 检测抓包软件
-function detectPacketSniffer(userAgent, headers) {
-  const snifferPatterns = [
-    'HttpCanary', 'HTTPCanary', 'httpcanary',
-    'PacketCapture', 'packetcapture',
-    'Fiddler', 'fiddler',
-    'Charles', 'charles',
-    'Wireshark', 'wireshark',
-    '蓝鸟', '黄鸟', '抓包', '抓包神器',
-    'Mitmproxy', 'mitmproxy',
-    'BurpSuite', 'burpsuite',
-    'Proxyman', 'proxyman',
-    'Stream', 'stream',
-    'Thor', 'thor',
-    'Network Monitor', 'NetworkMonitor',
-    'Packet Sniffer', 'PacketSniffer'
-  ];
-  
-  const headerSniffers = {
-    'x-requested-with': ['com.guoshi.httpcanary', 'com.eg.android.AlipayGphone'],
-    'user-agent': snifferPatterns,
-    'via': ['PacketCapture', 'Fiddler'],
-    'x-forwarded-for': [/^\d+\.\d+\.\d+\.\d+$/],
-    'x-device-id': [/^[a-f0-9]{32}$/i]
-  };
-  
-  // 检查User-Agent
-  const lowerUserAgent = (userAgent || '').toLowerCase();
-  if (snifferPatterns.some(pattern => lowerUserAgent.includes(pattern.toLowerCase()))) {
-    return true;
-  }
-  
-  // 检查请求头
-  for (const [header, patterns] of Object.entries(headerSniffers)) {
-    const headerValue = headers.get(header);
-    if (headerValue) {
-      if (patterns.some(pattern => {
-        if (typeof pattern === 'string') {
-          return headerValue.includes(pattern);
-        } else if (pattern instanceof RegExp) {
-          return pattern.test(headerValue);
-        }
-        return false;
-      })) {
-        return true;
-      }
-    }
-  }
-  
-  // 检查IP地址（通过Cloudflare headers）
-  const cfConnectingIp = headers.get('cf-connecting-ip');
-  const realIp = headers.get('x-real-ip');
-  const forwardedFor = headers.get('x-forwarded-for');
-  
-  // 检查是否来自VPN/代理
-  const vpnHeaders = ['x-forwarded-for', 'via', 'proxy-connection'];
-  if (vpnHeaders.some(header => headers.get(header))) {
-    return true;
-  }
-  
-  return false;
-}
-
-// 检测合法播放器
-function detectLegitPlayer(userAgent, headers) {
-  const playerPatterns = [
-    'TVBox', 'tvbox', 'TV-Box', 'tv-box',
-    '影视仓', 'yingshicang',
-    'K9Player', 'k9player', '酷9', 'ku9',
-    'TiviMate', 'tivimate',
-    'VLC', 'vlc',
-    'Kodi', 'kodi',
-    'MX Player', 'mxplayer',
-    'ExoPlayer', 'exoplayer',
-    'JustPlayer', 'justplayer',
-    'OTTPlayer', 'ottplayer',
-    'Perfect Player', 'perfectplayer',
-    'SmartIPTV', 'smartiptv',
-    'StbEmu', 'stbemu',
-    'MAG', 'mag',
-    'Infomir', 'infomir'
-  ];
-  
-  const playerHeaders = {
-    'accept': ['audio/*', 'video/*', 'application/vnd.apple.mpegurl', 'application/x-mpegurl'],
-    'user-agent': playerPatterns,
-    'range': [/^bytes=/], // 支持断点续传
-    'connection': ['Keep-Alive', 'keep-alive']
-  };
-  
-  const lowerUserAgent = (userAgent || '').toLowerCase();
-  
-  // 检查User-Agent
-  if (playerPatterns.some(pattern => lowerUserAgent.includes(pattern.toLowerCase()))) {
-    return true;
-  }
-  
-  // 检查Accept头
-  const acceptHeader = headers.get('accept') || '';
-  if (playerHeaders.accept.some(pattern => acceptHeader.includes(pattern))) {
-    return true;
-  }
-  
-  // 检查其他播放器特征
-  const hasPlayerFeatures = 
-    headers.get('range') && headers.get('range').startsWith('bytes=') ||
-    headers.get('connection') === 'Keep-Alive' ||
-    headers.get('x-requested-with') === 'tv.player.request' ||
-    acceptHeader.includes('m3u') ||
-    acceptHeader.includes('mpegurl');
-  
-  return hasPlayerFeatures;
-}
-
-// ========== 主功能函数 ==========
-
-// 主页HTML
+// 主页 HTML (index.html)
 async function getIndexHTML() {
-  // 返回与之前类似的HTML，但添加更多安全说明
-  // 由于长度限制，这里只提供关键修改
   return `<!DOCTYPE html>
-<html>
+<html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>🔒终极安全存储系统🔒</title>
     <style>
-        /* 添加更复杂的安全CSS混淆 */
-        body { font-family: sans-serif; }
-        .security-warning {
-            background: linear-gradient(135deg, #ff416c, #ff4b2b);
-            color: white;
-            padding: 20px;
-            border-radius: 10px;
-            margin: 20px 0;
+        ul { padding:15px; width:350px; display:grid; row-gap:10px; grid-template-columns:repeat(3, 1fr); }
+        p { font-size: 13px; }
+        body {font-family:"Microsoft YaHei"; font-weight: 300; margin: 2px;}
+        button { font-size: 14.5px; padding: 0px 1px; background-color: #000; color: #fff; border: none; border-radius: 3px;}               
+        textarea {opacity: 0.8; font-size:11px; white-space:pre; overflow:hidden;}
+        textarea:hover {overflow: auto;}
+        #linkDisplay {
+            margin:10px 0;
+            padding:8px;
+            background:#f0f0f0;
+            border: 1px solid #ccc;
+            border-radius: 4px;
         }
-    </style>
-</head>
-<body>
-    <div class="security-warning">
-        <h3>⚠️ 高级安全警告 ⚠️</h3>
-        <p>本系统使用军用级加密技术：</p>
-        <ul>
-            <li>AES-256-GCM 多层加密</li>
-            <li>动态时间混淆算法</li>
-            <li>汉字混淆编码</li>
-            <li>抓包软件实时检测</li>
-            <li>硬件指纹验证</li>
-        </ul>
-        <p>任何抓包尝试都会被记录并阻止！</p>
-    </div>
-    <!-- 原有表单内容 -->
-    <script>
-        // 添加客户端安全验证
-        function generateClientFingerprint() {
-            const fingerprint = {
-                screen: [window.screen.width, window.screen.height, window.screen.colorDepth],
-                language: navigator.language,
-                timezone: new Date().getTimezoneOffset(),
-                plugins: Array.from(navigator.plugins).map(p => p.name).join(','),
-                canvas: (() => {
-                    const canvas = document.createElement('canvas');
-                    const ctx = canvas.getContext('2d');
-                    ctx.textBaseline = 'top';
-                    ctx.font = '14px Arial';
-                    ctx.fillText('SecurityCheck', 2, 2);
-                    return canvas.toDataURL();
-                })()
-            };
-            return btoa(JSON.stringify(fingerprint));
+        #linkAnchor {
+            color: #0066cc;
+            font-weight: bold;
+            text-decoration: none;
+        }
+        #linkAnchor:hover {
+            text-decoration: underline;
+        }
+        .success-message {
+            color: green;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        .copy-btn {
+            margin-left: 10px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            padding: 2px 6px;
+            cursor: pointer;
         }
         
-        // 在每次请求中添加指纹
-        function addSecurityHeaders(xhr) {
-            const fingerprint = generateClientFingerprint();
-            const timestamp = Math.floor(Date.now() / 1000);
-            const token = btoa(fingerprint + '|' + timestamp);
+        .security-features {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        .security-features h3 {
+            margin-top: 0;
+            color: white;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .security-list {
+            list-style-type: none;
+            padding: 0;
+        }
+        
+        .security-list li {
+            padding: 8px 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .security-list li:last-child {
+            border-bottom: none;
+        }
+        
+        .security-icon {
+            font-size: 20px;
+        }
+        
+        .encryption-info {
+            background: #f8f9fa;
+            border-left: 4px solid #28a745;
+            padding: 10px;
+            margin: 15px 0;
+            font-size: 12px;
+        }
+        
+        .blocked-software {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 5px;
+            padding: 10px;
+            margin: 15px 0;
+        }
+        
+        .blocked-software h4 {
+            margin-top: 0;
+            color: #856404;
+        }
+    </style>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>🔒安全编辑工具🔒</title>
+</head>
+
+<body>
+    <h2>🔐 文件转为<u>安全链接</u></h2>
+    
+    <div class="security-features">
+        <h3>🛡️ 安全特性说明：</h3>
+        <ul class="security-list">
+            <li><span class="security-icon">✅</span> 动态时间加密 - 每次访问内容不同</li>
+            <li><span class="security-icon">✅</span> 播放器专用验证 - 只允许TVBox/酷9</li>
+            <li><span class="security-icon">✅</span> 反抓包保护 - 屏蔽蓝鸟/黄鸟</li>
+            <li><span class="security-icon">✅</span> 汉字加密 - 完全无法直接阅读</li>
+        </ul>
+    </div>
+    
+    <div class="blocked-software">
+        <h4>🚫 已屏蔽的抓包软件：</h4>
+        <p>蓝鸟、黄鸟、HTTPCanary、Fiddler、Charles、Wireshark、PacketCapture等</p>
+    </div>
+    
+    <p>可自定义扩展名，输入完整文件名如：<code>log.json</code>、<code>test.php</code>。〖<a href="./search.html"><b>接口搜索</b></a>〗</p><br>
+
+    <form id="uploadForm">
+        <div style="display: flex;">源文：
+            <span id="loadingMsg" style="display: none; color: red;">正在读取中...</span>
+        </div>
+        <textarea name="content" id="content" rows="12" cols="44" required style="width:96%; margin:0;"></textarea>
+        <br><br>密码：
+        <input type="text" name="password" id="password" required style="width:150px;"> 请牢记！！
+        <br>文件名（含扩展名）：
+        <input type="text" name="filename" id="filename" required style="width:150px;">
+        <button type="button" onclick="readFile()">读取文件</button>
+        <button type="button" onclick="uploadFile()">转为链接</button>
+    </form>
+    <p>可在线编辑已有文件，输入相同文件名与密码。</p><br>    
+
+    <div id="linkDisplay" style="display:none;">
+        <div class="success-message">✅ 文件已成功转为安全链接：</div>
+        <a id="linkAnchor" href="" target="_blank"></a>
+        <button class="copy-btn" onclick="copyLink()">复制链接</button>
+        
+        <div class="encryption-info">
+            <strong>🔒 安全说明：</strong><br>
+            1. 此链接使用动态时间加密，每次访问内容都不同<br>
+            2. 只有TVBox/酷9等播放器可以正常访问<br>
+            3. 抓包软件无法获取真实内容<br>
+            4. 所有文字都已加密保护
+        </div>
+    </div>
+    
+<ul>
+     <li><a href="http://is.is-great.org/">一键接口</a></li>
+     <li><a href="http://zozo.work.gd/ys/">接口隐身</a></li>     
+      <li><a href="http://94.7749.org/">点播加密</a></li>
+      <li><a href="http://94.7749.org/9/">接口解密</a></li>
+      <li><a href="http://go2.work.gd/m3u/">接口转换</a></li>
+      <li><a href="http://go.work.gd/_JK.htm">大佬接口</a></li>
+      <li><a href="http://go2.work.gd/">接口大全</a></li>      
+      <li><a href="http://go.7749.org/">一起看看</a></li> 
+  </ul>
+  
+    <script>
+        function readFile() {
+            const filename = document.getElementById('filename').value;
+            const password = document.getElementById('password').value;
             
-            xhr.setRequestHeader('X-Client-Fingerprint', fingerprint);
-            xhr.setRequestHeader('X-Client-Time', timestamp);
-            xhr.setRequestHeader('X-Security-Token', token);
+            if (!filename) {
+                alert('请输入文件名');
+                return;
+            }
+            
+            const xhr = new XMLHttpRequest();
+            xhr.open('GET', 'read0.php?filename=' + encodeURIComponent(filename) + 
+                          '&password=' + encodeURIComponent(password), true);
+
+            document.getElementById('loadingMsg').style.display = 'inline';
+
+            xhr.onload = function() {
+                document.getElementById('loadingMsg').style.display = 'none';
+                
+                if (xhr.status === 200) {
+                    try {
+                        const response = JSON.parse(xhr.responseText);
+                        
+                        if (response.error) {
+                            alert('错误: ' + response.error);
+                        } else {
+                            document.getElementById('content').value = response.content;
+                            showLink(response.fileLink);
+                        }
+                    } catch (e) {
+                        alert('解析响应失败: ' + e.message);
+                    }
+                } else {
+                    alert('请求失败: ' + xhr.statusText);
+                }
+            };
+
+            xhr.onerror = function() {
+                document.getElementById('loadingMsg').style.display = 'none';
+                alert('网络错误');
+            };
+
+            xhr.send();
+        }
+        
+        function uploadFile() {
+            const filename = document.getElementById('filename').value;
+            const password = document.getElementById('password').value;
+            const content = document.getElementById('content').value;
+            
+            if (!filename || !password || !content) {
+                alert('请填写所有必填字段');
+                return;
+            }
+            
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', 'upload.php', true);
+            xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+            
+            document.getElementById('loadingMsg').style.display = 'inline';
+            document.getElementById('loadingMsg').textContent = '正在加密生成链接...';
+            
+            xhr.onload = function() {
+                document.getElementById('loadingMsg').style.display = 'none';
+                
+                if (xhr.status === 200) {
+                    try {
+                        const response = JSON.parse(xhr.responseText);
+                        if (response.success) {
+                            showLink(response.fileLink);
+                        } else {
+                            alert('生成链接失败: ' + (response.error || ''));
+                        }
+                    } catch (e) {
+                        alert('解析响应失败: ' + e.message);
+                    }
+                } else {
+                    alert('上传失败: ' + xhr.statusText);
+                }
+            };
+            
+            xhr.onerror = function() {
+                document.getElementById('loadingMsg').style.display = 'none';
+                alert('网络错误');
+            };
+            
+            const params = 'filename=' + encodeURIComponent(filename) + 
+                          '&password=' + encodeURIComponent(password) + 
+                          '&content=' + encodeURIComponent(content);
+            xhr.send(params);
+        }
+        
+        function showLink(link) {
+            const linkDisplay = document.getElementById('linkDisplay');
+            const linkAnchor = document.getElementById('linkAnchor');
+            
+            linkAnchor.href = link;
+            linkAnchor.textContent = link;
+            linkDisplay.style.display = 'block';
+            
+            linkDisplay.scrollIntoView({ behavior: 'smooth' });
+        }
+        
+        function copyLink() {
+            const link = document.getElementById('linkAnchor').href;
+            navigator.clipboard.writeText(link)
+                .then(() => alert('安全链接已复制到剪贴板'))
+                .catch(err => alert('复制失败: ' + err));
         }
     </script>
 </body>
 </html>`;
 }
 
-// 安全文件下载处理 - 终极版
+// 管理页面处理 - 修复：独立的安全验证
+async function handleManagementPage(request, env) {
+  try {
+    // 检查管理访问令牌
+    const url = new URL(request.url);
+    const managementToken = url.searchParams.get('manage_token');
+    const expectedToken = await env.MY_TEXT_STORAGE.get('management_token') || 'default_manage_token_2024';
+    
+    // 如果没有令牌或令牌错误，显示登录页面
+    if (!managementToken || managementToken !== expectedToken) {
+      return new Response(await getManagementLoginHTML(request), {
+        headers: { 
+          'content-type': 'text/html;charset=UTF-8',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'X-Content-Type-Options': 'nosniff'
+        },
+      });
+    }
+    
+    // 令牌正确，显示管理页面
+    return new Response(await getSearchHTML(request, env, managementToken), {
+      headers: { 
+        'content-type': 'text/html;charset=UTF-8',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'X-Content-Type-Options': 'nosniff'
+      },
+    });
+  } catch (error) {
+    return new Response(`管理页面错误: ${error.message}`, { 
+      status: 500,
+      headers: {
+        'Content-Type': 'text/plain; charset=utf-8',
+        'X-Content-Type-Options': 'nosniff'
+      }
+    });
+  }
+}
+
+// 管理登录页面
+async function getManagementLoginHTML(request) {
+  return `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>管理登录</title>
+<style>
+body{font-family:"Segoe UI",Tahoma,sans-serif;font-size:14px;color:#333;margin:0;padding:20px;background:#f5f5f5;}
+.login-container{max-width:400px;margin:50px auto;background:white;padding:30px;border-radius:10px;box-shadow:0 0 20px rgba(0,0,0,0.1);}
+h2{color:#4a6cf7;text-align:center;margin-bottom:30px;}
+.input-group{margin-bottom:20px;}
+label{display:block;margin-bottom:5px;color:#555;}
+input[type="password"]{width:100%;padding:10px;border:1px solid #ddd;border-radius:5px;box-sizing:border-box;font-size:16px;}
+.login-btn{width:100%;padding:12px;background:#4a6cf7;color:white;border:none;border-radius:5px;cursor:pointer;font-size:16px;font-weight:bold;}
+.login-btn:hover{background:#3653d3;}
+.error-message{color:#d9534f;text-align:center;margin-top:15px;}
+.security-note{background:#e3f2fd;border:1px solid #2196f3;border-radius:5px;padding:15px;margin-top:20px;font-size:12px;}
+.security-note h4{margin-top:0;color:#1976d2;}
+</style>
+</head>
+<body>
+<div class="login-container">
+  <h2>🔐 管理页面登录</h2>
+  <form id="loginForm">
+    <div class="input-group">
+      <label for="token">管理令牌：</label>
+      <input type="password" id="token" name="token" required placeholder="输入管理访问令牌">
+    </div>
+    <button type="button" class="login-btn" onclick="submitLogin()">登录</button>
+    <div id="errorMsg" class="error-message"></div>
+  </form>
+  
+  <div class="security-note">
+    <h4>安全说明：</h4>
+    <p>此页面用于文件管理，需要特殊令牌访问。</p>
+    <p>默认令牌：<code>default_manage_token_2024</code></p>
+    <p>首次使用后请及时修改令牌！</p>
+  </div>
+</div>
+
+<script>
+function submitLogin() {
+  const token = document.getElementById('token').value;
+  if (!token) {
+    document.getElementById('errorMsg').textContent = '请输入令牌';
+    return;
+  }
+  
+  window.location.href = window.location.pathname + '?manage_token=' + encodeURIComponent(token);
+}
+</script>
+</body>
+</html>`;
+}
+
+// 搜索管理页面 HTML (search.php) - 修复版本
+async function getSearchHTML(request, env, managementToken) {
+  const url = new URL(request.url);
+  const formData = await parseFormData(request);
+  
+  let messages = [];
+  let searchResults = [];
+  let keyword = formData.keyword || '';
+  let includePwd = formData.include_pwd === 'on';
+  let sortField = formData.sort_field || 'ctime';
+  let sortOrder = formData.sort_order || 'desc';
+  let searchPerformed = !!(formData.submit_search || formData.force_search);
+  let showAll = !!(formData.show_all || formData.force_show_all);
+
+  // 处理各种操作
+  if (formData.save_remark) {
+    const filename = formData.file_name;
+    const remark = formData.remark_content;
+    
+    if (filename) {
+      try {
+        const safeFilename = sanitizeFilename(filename);
+        if (remark && remark.trim() !== '') {
+          await env.MY_TEXT_STORAGE.put('remark_' + safeFilename, remark.trim());
+          messages.push('✅ 备注已保存：' + filename);
+        } else {
+          await env.MY_TEXT_STORAGE.delete('remark_' + safeFilename);
+          messages.push('✅ 备注已清空：' + filename);
+        }
+        showAll = true;
+      } catch (error) {
+        console.error('保存备注失败:', error);
+        messages.push('❌ 保存备注失败：' + error.message);
+      }
+    } else {
+      messages.push('❌ 文件名不能为空');
+    }
+  }
+
+  // 删除文件操作
+  if (formData.delete_file) {
+    const fileToDelete = formData.delete_file;
+    try {
+      const safeFilename = sanitizeFilename(fileToDelete);
+      await env.MY_TEXT_STORAGE.delete('file_' + safeFilename);
+      await env.MY_TEXT_STORAGE.delete('pwd_' + safeFilename);
+      await env.MY_TEXT_STORAGE.delete('remark_' + safeFilename);
+      await env.MY_TEXT_STORAGE.delete('meta_' + safeFilename);
+      messages.push('✅ 已删除：' + fileToDelete);
+      showAll = true;
+    } catch (error) {
+      messages.push('❌ 删除失败：' + error.message);
+    }
+  }
+
+  // 批量删除操作
+  if (formData.delete_selected && formData.selected_files) {
+    const filesToDelete = Array.isArray(formData.selected_files) ? formData.selected_files : [formData.selected_files];
+    let count = 0;
+    let errorCount = 0;
+    
+    for (const fileName of filesToDelete) {
+      try {
+        const safeFileName = sanitizeFilename(fileName);
+        await env.MY_TEXT_STORAGE.delete('file_' + safeFileName);
+        await env.MY_TEXT_STORAGE.delete('pwd_' + safeFileName);
+        await env.MY_TEXT_STORAGE.delete('remark_' + safeFileName);
+        await env.MY_TEXT_STORAGE.delete('meta_' + safeFileName);
+        count++;
+      } catch (error) {
+        errorCount++;
+        console.error('删除文件失败:', fileName, error);
+      }
+    }
+    
+    if (errorCount > 0) {
+      messages.push(`🍄 批量删除完成，成功 ${count} 个，失败 ${errorCount} 个`);
+    } else {
+      messages.push('🍄 批量删除 ' + count + ' 个文件');
+    }
+    showAll = true;
+  }
+
+  // 新建文件保存功能
+  if (formData.save_file) {
+    const filename = formData.file_name;
+    const content = formData.file_content;
+    const password = formData.file_password || 'default_password';
+    
+    if (filename) {
+      try {
+        const safeFilename = sanitizeFilename(filename);
+        await env.MY_TEXT_STORAGE.put('file_' + safeFilename, content);
+        await env.MY_TEXT_STORAGE.put('pwd_' + safeFilename, password);
+        const metadata = {
+          ctime: Date.now(),
+          size: content.length
+        };
+        await env.MY_TEXT_STORAGE.put('meta_' + safeFilename, JSON.stringify(metadata));
+        
+        messages.push('✅ 保存成功：' + filename);
+        showAll = true;
+      } catch (error) {
+        messages.push('❌ 保存失败：' + error.message);
+      }
+    } else {
+      messages.push('⚠️ 文件名不能为空！');
+    }
+  }
+
+  // 获取文件列表
+  const allFiles = await env.MY_TEXT_STORAGE.list();
+  const fileEntries = [];
+  
+  for (const key of allFiles.keys) {
+    if (key.name.startsWith('file_')) {
+      const filename = key.name.substring(5);
+      
+      // 过滤密码文件
+      if (!includePwd && (filename.endsWith('.pwd') || filename.includes('.pwd.'))) {
+        continue;
+      }
+
+      let shouldInclude = false;
+      
+      if (searchPerformed && keyword.trim() !== '') {
+        const content = await env.MY_TEXT_STORAGE.get(key.name);
+        if (content && (content.includes(keyword) || filename.includes(keyword))) {
+          shouldInclude = true;
+        }
+      } else if (showAll) {
+        shouldInclude = true;
+      }
+
+      if (shouldInclude) {
+        // 获取元数据
+        const metaKey = 'meta_' + filename;
+        let metadata = { ctime: Date.now(), size: 0 };
+        try {
+          const metaData = await env.MY_TEXT_STORAGE.get(metaKey);
+          if (metaData) {
+            metadata = JSON.parse(metaData);
+          } else {
+            const fileContent = await env.MY_TEXT_STORAGE.get(key.name);
+            metadata = {
+              ctime: Date.now(),
+              size: fileContent ? fileContent.length : 0
+            };
+            await env.MY_TEXT_STORAGE.put(metaKey, JSON.stringify(metadata));
+          }
+        } catch (e) {
+          console.log('解析元数据失败:', e);
+          const fileContent = await env.MY_TEXT_STORAGE.get(key.name);
+          metadata = {
+            ctime: Date.now(),
+            size: fileContent ? fileContent.length : 0
+          };
+        }
+        
+        fileEntries.push({
+          name: filename,
+          size: metadata.size || 0,
+          ctime: metadata.ctime || Date.now()
+        });
+      }
+    }
+  }
+
+  // 排序
+  fileEntries.sort((a, b) => {
+    let result = 0;
+    if (sortField === 'ctime') {
+      result = a.ctime - b.ctime;
+    } else if (sortField === 'size') {
+      result = a.size - b.size;
+    } else {
+      result = a.name.localeCompare(b.name);
+    }
+    return sortOrder === 'asc' ? result : -result;
+  });
+
+  searchResults = fileEntries;
+
+  // 获取所有备注和密码
+  const remarks = {};
+  const passwords = {};
+  
+  for (const key of allFiles.keys) {
+    if (key.name.startsWith('remark_')) {
+      const filename = key.name.substring(7);
+      try {
+        const remark = await env.MY_TEXT_STORAGE.get(key.name);
+        if (remark) {
+          remarks[filename] = remark;
+        }
+      } catch (error) {
+        console.error('获取备注失败:', filename, error);
+      }
+    }
+    if (key.name.startsWith('pwd_')) {
+      const filename = key.name.substring(4);
+      try {
+        const password = await env.MY_TEXT_STORAGE.get(key.name);
+        if (password) {
+          passwords[filename] = password;
+        }
+      } catch (error) {
+        console.error('获取密码失败:', filename, error);
+      }
+    }
+  }
+
+  // 生成搜索结果的HTML
+  let searchResultsHTML = '';
+  if (searchResults.length > 0) {
+    let fileListHTML = '';
+    for (const r of searchResults) {
+      const time = new Date(r.ctime).toLocaleString('zh-CN', {
+        year: 'numeric', month: '2-digit', day: '2-digit', 
+        hour: '2-digit', minute: '2-digit', second: '2-digit'
+      }).replace(/\//g, '.');
+      
+      const size = formatFileSize(r.size);
+      const currentRemark = remarks[r.name] || '';
+      const currentPassword = passwords[r.name] || '未设置';
+      
+      const safeRemark = currentRemark.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+      const remarkPreview = currentRemark ? 
+        (currentRemark.length > 20 ? currentRemark.substring(0, 20) + '...' : currentRemark) : '';
+      
+      // 修复：添加管理令牌到所有链接
+      fileListHTML += `
+<div class='file-item'>
+  <input type='checkbox' name='selected_files[]' value='${r.name.replace(/"/g, '&quot;')}'>
+  <a href='/z/${encodeURIComponent(r.name)}?manage_token=${managementToken}' class='file-link' target='_blank'>${r.name}</a>
+  <span class='file-time'>🌷${time}</span>
+  <span class='file-size'>🌵${size}</span>
+  <button type='button' class='search-btn' onclick='editFile("${r.name.replace(/"/g, '&quot;')}", "${managementToken}")'>✏️编辑</button>
+  <button type='button' class='remark-btn' onclick='editRemark("${r.name.replace(/"/g, '&quot;')}", "${safeRemark}")'>📝备注</button>
+  <button type='button' class='password-btn' onclick='showPassword("${r.name.replace(/"/g, '&quot;')}", "${currentPassword.replace(/"/g, '&quot;')}")'>🔑密码</button>
+  ${remarkPreview ? `<span class='remark-preview' title='${safeRemark}'>${remarkPreview}</span>` : ''}
+  <button type='submit' name='delete_file' value='${r.name.replace(/"/g, '&quot;')}' class='delete-btn'>🍄</button>
+</div>
+`;
+    }
+    
+    searchResultsHTML = `
+<form method='post' onsubmit='return confirm("确定删除选中的文件吗？");'>
+  <div class='select-controls'>
+    <button type='button' class='search-btn' onclick='toggleSelectAll(true)'>全选</button>
+    <button type='button' class='search-btn' onclick='toggleSelectAll(false)'>全不选</button>
+    <button type='button' class='search-btn' onclick='invertSelection()'>反选</button>
+  </div>
+  <div class='file-list'>
+    ${fileListHTML}
+  </div>
+  <button type='submit' name='delete_selected' class='batch-delete-btn'>🍄 批量删除选中</button>
+</form>
+`;
+  } else if (searchPerformed || showAll) {
+    searchResultsHTML = '<div>没有找到相关文件。</div>';
+  }
+
+  // 返回完整的HTML页面
+  return `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>文件搜索与管理</title>
+<style>
+body{font-family:"Segoe UI",Tahoma,sans-serif;font-size:14px;color:#333;margin:0;padding:10px;}
+.back-link{display:block;margin-bottom:15px;color:#4a6cf7;text-decoration:none;}
+.search-input{padding:5px 8px;border:1px solid #ddd;width:300px;}
+.search-btn{background:#4a6cf7;color:white;border:none;padding:6px 10px;cursor:pointer;margin:0 2px;}
+.search-btn:hover{background:#3653d3;}
+.delete-btn{background:none;border:none;color:#d9534f;cursor:pointer;font-size:16px;padding:0 4px;line-height:1;}
+.delete-btn:hover{transform:scale(1.2);}
+.batch-delete-btn{background:none;border:1px solid #d9534f;color:#d9534f;padding:5px 10px;cursor:pointer;font-size:14px;border-radius:4px;margin-top:8px;}
+.batch-delete-btn:hover{background:#d9534f;color:white;}
+.file-list{margin-top:10px;}
+.file-item{padding:3px 0;display:flex;align-items:center;gap:6px;}
+.file-link{text-decoration:none;color:#1a0dab;flex-shrink:0;}
+.file-time{color:#d9534f;margin-left:5px;}
+.file-size{color:#5cb85c;margin-left:5px;}
+.remark-btn{background:none;border:none;color:#f0ad4e;cursor:pointer;font-size:14px;padding:0 4px;}
+.remark-btn:hover{color:#ec971f;}
+.password-btn{background:none;border:none;color:#5bc0de;cursor:pointer;font-size:14px;padding:0 4px;}
+.password-btn:hover{color:#31b0d5;}
+.remark-preview{color:#777;font-size:12px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-left:5px;}
+.message{margin-bottom:10px;color:#007bff;}
+input[type=checkbox]{margin-right:5px;}
+.select-controls{margin:6px 0;}
+.upload-progress{width:100%;height:18px;background:#eee;margin-top:5px;border-radius:4px;overflow:hidden;}
+.upload-bar{height:100%;width:0%;background:#4a6cf7;color:white;text-align:center;font-size:12px;line-height:18px;}
+.password-input{margin-top:6px;padding:6px;width:100%;box-sizing:border-box;border:1px solid #ddd;}
+.security-note {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border-radius: 8px;
+  padding: 15px;
+  margin: 15px 0;
+}
+.security-note h3 {
+  margin-top: 0;
+  color: white;
+}
+.security-list {
+  list-style-type: none;
+  padding: 0;
+}
+.security-list li {
+  padding: 5px 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.security-list li:before {
+  content: "✓ ";
+  color: #4CAF50;
+  font-weight: bold;
+}
+.management-token {
+  background: #f8f9fa;
+  border: 1px solid #28a745;
+  border-radius: 5px;
+  padding: 10px;
+  margin: 15px 0;
+}
+.management-token h4 {
+  margin-top: 0;
+  color: #28a745;
+}
+</style>
+</head>
+
+<body>
+<a href="./" class="back-link">．．． 返回主页</a>
+${messages.map(function(msg) { return '<div class="message">' + msg + '</div>'; }).join('')}
+
+<div class="security-note">
+  <h3>🛡️ 高级安全特性已启用</h3>
+  <ul class="security-list">
+    <li>✅ 动态时间加密 - 每次访问内容不同，防止抓包</li>
+    <li>✅ 播放器白名单 - 只允许TVBox、酷9等</li>
+    <li>✅ 抓包软件屏蔽 - 蓝鸟、黄鸟等无法访问</li>
+    <li>✅ 汉字加密 - 所有文本动态加密</li>
+    <li>✅ 管理豁免 - 此页面可直接访问文件</li>
+  </ul>
+  <p style="color: #ffeb3b; font-weight: bold;">⚠️ 注意：通过 /z/ 下载的文件已加密，只有播放器能正常读取！</p>
+</div>
+
+<div class="management-token">
+  <h4>🔑 当前管理令牌：</h4>
+  <p><code>${managementToken}</code></p>
+  <p style="font-size: 12px; color: #666;">此令牌用于管理页面访问文件，请妥善保管！</p>
+</div>
+
+<form method="post" id="searchForm">
+<input type="hidden" name="manage_token" value="${managementToken}">
+<label>搜索词:</label>
+<input type="text" name="keyword" class="search-input" value="${keyword.replace(/"/g, '&quot;')}">
+<label><input type="checkbox" name="include_pwd" ${includePwd ? 'checked' : ''}> 显示密码文件(.pwd)</label>
+<input type="hidden" id="sortField" name="sort_field" value="${sortField}">
+<input type="hidden" id="sortOrder" name="sort_order" value="${sortOrder}">
+<input type="submit" name="submit_search" class="search-btn" value="搜索">
+<input type="submit" name="show_all" class="search-btn" value="显示全部文件">
+<button type="button" class="search-btn" onclick="toggleSort('ctime')">时间排序 (${sortField==='ctime'?(sortOrder==='asc'?'↑':'↓'):'-'})</button>
+<button type="button" class="search-btn" onclick="toggleSort('size')">大小排序 (${sortField==='size'?(sortOrder==='asc'?'↑':'↓'):'-'})</button>
+<button type="button" class="search-btn" onclick="editFile('', '${managementToken}')">🆕 新建文件</button>
+<button type="button" class="search-btn" onclick="uploadFiles('${managementToken}')">📤 上传文件</button>
+</form>
+
+${searchResultsHTML}
+
+<script>
+// 格式化文件大小函数
+function formatFileSize(bytes) {
+  if (bytes < 1024) return bytes + 'B';
+  if (bytes < 1048576) return (bytes / 1024).toFixed(2) + 'KB';
+  return (bytes / 1048576).toFixed(2) + 'MB';
+}
+
+// 排序功能
+function toggleSort(field){
+    const form = document.getElementById('searchForm');
+    const fieldInput = document.getElementById('sortField');
+    const orderInput = document.getElementById('sortOrder');
+    
+    if(fieldInput.value === field){
+        orderInput.value = (orderInput.value === 'asc') ? 'desc' : 'asc';
+    } else {
+        fieldInput.value = field;
+        orderInput.value = 'asc';
+    }
+    
+    const oldForceSearch = document.getElementById('force_search');
+    const oldForceShowAll = document.getElementById('force_show_all');
+    if(oldForceSearch) oldForceSearch.remove();
+    if(oldForceShowAll) oldForceShowAll.remove();
+    
+    ${searchPerformed ? `
+    const hidden = document.createElement('input');
+    hidden.type = 'hidden';
+    hidden.name = 'force_search';
+    hidden.id = 'force_search';
+    hidden.value = '1';
+    form.appendChild(hidden);
+    ` : ''}
+    
+    ${showAll ? `
+    const hidden = document.createElement('input');
+    hidden.type = 'hidden';
+    hidden.name = 'force_show_all';
+    hidden.id = 'force_show_all';
+    hidden.value = '1';
+    form.appendChild(hidden);
+    ` : ''}
+    
+    form.submit();
+}
+
+// 文件选择功能
+function toggleSelectAll(check){
+    const checkboxes = document.querySelectorAll('input[name="selected_files[]"]');
+    checkboxes.forEach(function(checkbox) {
+        checkbox.checked = check;
+    });
+}
+
+function invertSelection(){
+    const checkboxes = document.querySelectorAll('input[name="selected_files[]"]');
+    checkboxes.forEach(function(checkbox) {
+        checkbox.checked = !checkbox.checked;
+    });
+}
+
+// 弹窗编辑/新建 - 修复：添加管理令牌
+function editFile(filename, manageToken){
+    if(filename === undefined) filename = '';
+    
+    const existingModal = document.getElementById('editModal');
+    const existingOverlay = document.getElementById('modalOverlay');
+    if(existingModal) existingModal.remove();
+    if(existingOverlay) existingOverlay.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'modalOverlay';
+    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.3);z-index:999;';
+    overlay.onclick = function(){overlay.remove(); modal.remove();};
+    document.body.appendChild(overlay);
+
+    const modal = document.createElement('form');
+    modal.id = 'editModal';
+    modal.method = 'post';
+    modal.style.cssText = 'display:flex;flex-direction:column;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:700px;max-width:95%;height:550px;min-height:350px;padding:10px;background:white;border:1px solid #ccc;box-shadow:0 0 12px rgba(0,0,0,0.3);z-index:1000;';
+    
+    modal.innerHTML = '<div id="modalHeader" style="cursor:move;padding:8px 10px;background:#f1f1f1;border-bottom:1px solid #ccc;display:flex;justify-content:space-between;align-items:center;"><span>编辑文件</span><div class="btn-group"><button type="button" id="maximizeBtn">🖥️ 最大化/恢复</button><span class="close-btn" style="cursor:pointer;color:#d9534f;font-weight:bold;font-size:16px;">×</span></div></div><input type="hidden" name="manage_token" value="' + manageToken + '"><input type="text" name="file_name" id="edit_file_name" style="width:100%;margin-top:6px;padding:6px;box-sizing:border-box;font-family:monospace;font-size:14px;"><input type="text" name="file_password" id="edit_file_password" placeholder="文件密码（新建文件必填）" style="width:100%;margin-top:6px;padding:6px;box-sizing:border-box;font-family:monospace;font-size:14px;"><textarea name="file_content" id="edit_file_content" style="flex:1;width:100%;margin-top:6px;padding:6px;box-sizing:border-box;font-family:monospace;font-size:14px;resize:none;"></textarea><button type="submit" name="save_file" class="search-btn" style="margin-top:6px;">💾 保存文件</button><div id="resizeHandle" style="width:15px;height:15px;background:#ccc;position:absolute;right:2px;bottom:2px;cursor:se-resize;"></div>';
+    
+    document.body.appendChild(modal);
+
+    const fname = modal.querySelector('#edit_file_name');
+    const fpassword = modal.querySelector('#edit_file_password');
+    const fcontent = modal.querySelector('#edit_file_content');
+    fname.value = filename;
+    
+    if(filename){
+        fname.readOnly = true;
+        fpassword.placeholder = "文件密码（编辑时无需修改）";
+        fpassword.required = false;
+        
+        // 加载文件内容 - 使用管理令牌
+        fetch('/z/' + encodeURIComponent(filename) + '?manage_token=' + encodeURIComponent(manageToken))
+            .then(function(r){ return r.text(); })
+            .then(function(t){ 
+                fcontent.value = t; 
+            })
+            .catch(function(){ 
+                fcontent.value = '(无法显示二进制文件，可直接保存覆盖)'; 
+            });
+    } else { 
+        fname.readOnly = false; 
+        fpassword.required = true;
+        fcontent.value = ''; 
+    }
+
+    modal.querySelector('.close-btn').onclick = function(){modal.remove(); overlay.remove();};
+
+    const header = modal.querySelector('#modalHeader');
+    let isDragging = false, offsetX = 0, offsetY = 0;
+    header.addEventListener('mousedown', function(e){
+        if(e.target.tagName !== 'BUTTON'){
+            isDragging = true;
+            offsetX = e.clientX - modal.offsetLeft;
+            offsetY = e.clientY - modal.offsetTop;
+        }
+    });
+    
+    document.addEventListener('mousemove', function(e){
+        if(isDragging){
+            modal.style.left = (e.clientX - offsetX) + 'px';
+            modal.style.top = (e.clientY - offsetY) + 'px';
+        }
+    });
+    
+    document.addEventListener('mouseup', function(e){
+        isDragging = false;
+    });
+
+    let isMaximized = false, prevSize = {width:0, height:0, left:0, top:0};
+    const maximizeBtn = modal.querySelector('#maximizeBtn');
+    maximizeBtn.onclick = function(){
+        if(!isMaximized){
+            prevSize.width = modal.offsetWidth;
+            prevSize.height = modal.offsetHeight;
+            prevSize.left = modal.offsetLeft;
+            prevSize.top = modal.offsetTop;
+            modal.style.left = '0';
+            modal.style.top = '0';
+            modal.style.width = '100%';
+            modal.style.height = '100%';
+            modal.style.transform = 'none';
+            isMaximized = true;
+        } else {
+            modal.style.width = prevSize.width + 'px';
+            modal.style.height = prevSize.height + 'px';
+            modal.style.left = prevSize.left + 'px';
+            modal.style.top = prevSize.top + 'px';
+            modal.style.transform = 'translate(-50%,-50%)';
+            isMaximized = false;
+        }
+        adjustTextarea();
+    };
+
+    const resizeHandle = modal.querySelector('#resizeHandle');
+    let isResizing = false;
+    resizeHandle.addEventListener('mousedown', function(e){
+        e.stopPropagation();
+        isResizing = true;
+    });
+    
+    document.addEventListener('mousemove', function(e){
+        if(isResizing){
+            modal.style.width = (e.clientX - modal.offsetLeft) + 'px';
+            modal.style.height = (e.clientY - modal.offsetTop) + 'px';
+            adjustTextarea();
+        }
+    });
+    
+    document.addEventListener('mouseup', function(e){
+        isResizing = false;
+    });
+
+    function adjustTextarea(){
+        const headerHeight = header.offsetHeight;
+        const nameHeight = fname.offsetHeight;
+        const passwordHeight = fpassword.offsetHeight;
+        const btnHeight = modal.querySelector('button[name="save_file"]').offsetHeight;
+        const padding = 40;
+        fcontent.style.height = (modal.offsetHeight - headerHeight - nameHeight - passwordHeight - btnHeight - padding) + 'px';
+    }
+    
+    window.addEventListener('resize', adjustTextarea);
+    adjustTextarea();
+}
+
+// 显示密码功能
+function showPassword(filename, password){
+    const existingModal = document.getElementById('passwordModal');
+    const existingOverlay = document.getElementById('passwordOverlay');
+    if(existingModal) existingModal.remove();
+    if(existingOverlay) existingOverlay.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'passwordOverlay';
+    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.3);z-index:999;';
+    document.body.appendChild(overlay);
+
+    const modal = document.createElement('div');
+    modal.id = 'passwordModal';
+    modal.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:400px;max-width:90%;padding:15px;background:white;border:1px solid #ccc;box-shadow:0 0 12px rgba(0,0,0,0.3);z-index:1000;';
+    
+    modal.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;"><span><strong>文件密码：</strong>' + filename + '</span><span class="close-btn" style="cursor:pointer;color:#d9534f;font-weight:bold;font-size:16px;">×</span></div><div style="padding:10px;background:#f9f9f9;border:1px solid #ddd;border-radius:4px;margin-bottom:10px;"><strong>密码：</strong><span style="font-family:monospace;color:#d9534f;">' + password + '</span></div><div style="display:flex;justify-content:space-between;"><button type="button" class="search-btn" onclick="copyPassword(\\'' + password + '\\')">📋 复制密码</button><button type="button" class="search-btn" onclick="editPassword(\\'' + filename + '\\', \\'' + password + '\\')">✏️ 修改密码</button></div>';
+    
+    document.body.appendChild(modal);
+
+    modal.querySelector('.close-btn').onclick = function(){modal.remove(); overlay.remove();};
+    overlay.onclick = function(){modal.remove(); overlay.remove();};
+}
+
+function copyPassword(password) {
+    navigator.clipboard.writeText(password)
+        .then(() => alert('密码已复制到剪贴板'))
+        .catch(err => alert('复制失败: ' + err));
+}
+
+function editPassword(filename, currentPassword){
+    const existingModal = document.getElementById('editPasswordModal');
+    const existingOverlay = document.getElementById('editPasswordOverlay');
+    if(existingModal) existingModal.remove();
+    if(existingOverlay) existingOverlay.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'editPasswordOverlay';
+    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.3);z-index:999;';
+    document.body.appendChild(overlay);
+
+    const modal = document.createElement('form');
+    modal.id = 'editPasswordModal';
+    modal.method = 'post';
+    modal.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:400px;max-width:90%;padding:15px;background:white;border:1px solid #ccc;box-shadow:0 0 12px rgba(0,0,0,0.3);z-index:1000;';
+    
+    modal.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;"><span><strong>修改密码：</strong>' + filename + '</span><span class="close-btn" style="cursor:pointer;color:#d9534f;font-weight:bold;font-size:16px;">×</span></div><div style="margin-bottom:10px;"><label>当前密码：</label><span style="font-family:monospace;color:#777;">' + currentPassword + '</span></div><input type="text" name="new_password" placeholder="输入新密码" value="' + currentPassword + '" style="width:100%;padding:8px;box-sizing:border-box;border:1px solid #ddd;margin-bottom:10px;"><div style="display:flex;justify-content:space-between;"><button type="button" class="search-btn" onclick="updatePassword(\\'' + filename + '\\', this.form.new_password.value)">💾 更新密码</button></div>';
+    
+    document.body.appendChild(modal);
+
+    modal.querySelector('.close-btn').onclick = function(){modal.remove(); overlay.remove();};
+    overlay.onclick = function(){modal.remove(); overlay.remove();};
+}
+
+function updatePassword(filename, newPassword) {
+    if (!newPassword) {
+        alert('请输入新密码');
+        return;
+    }
+    
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', 'update_password.php', true);
+    xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+    
+    const params = 'filename=' + encodeURIComponent(filename) + 
+                  '&new_password=' + encodeURIComponent(newPassword);
+    
+    xhr.send(params);
+    
+    xhr.onload = function() {
+        if(xhr.status === 200) {
+            try {
+                const response = JSON.parse(xhr.responseText);
+                if(response.success) {
+                    alert('密码更新成功');
+                    document.getElementById('editPasswordModal').remove();
+                    document.getElementById('editPasswordOverlay').remove();
+                    document.getElementById('passwordModal').remove();
+                    document.getElementById('passwordOverlay').remove();
+                    location.reload();
+                } else {
+                    alert('密码更新失败: ' + (response.error || ''));
+                }
+            } catch(e) {
+                alert('解析响应失败: ' + e.message);
+            }
+        } else {
+            alert('请求失败: ' + xhr.statusText);
+        }
+    };
+    
+    xhr.onerror = function() {
+        alert('网络错误');
+    };
+}
+
+// 编辑备注弹窗
+function editRemark(filename, currentRemark){
+    if(currentRemark === undefined) currentRemark = '';
+    
+    const existingModal = document.getElementById('remarkModal');
+    const existingOverlay = document.getElementById('remarkOverlay');
+    if(existingModal) existingModal.remove();
+    if(existingOverlay) existingOverlay.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'remarkOverlay';
+    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.3);z-index:999;';
+    document.body.appendChild(overlay);
+
+    const modal = document.createElement('form');
+    modal.id = 'remarkModal';
+    modal.method = 'post';
+    modal.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:500px;max-width:90%;padding:15px;background:white;border:1px solid #ccc;box-shadow:0 0 12px rgba(0,0,0,0.3);z-index:1000;';
+    
+    modal.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;"><span><strong>编辑备注：</strong>' + filename + '</span><span class="close-btn" style="cursor:pointer;color:#d9534f;font-weight:bold;font-size:16px;">×</span></div><input type="hidden" name="file_name" value="' + filename + '"><textarea name="remark_content" style="width:100%;height:120px;padding:8px;box-sizing:border-box;border:1px solid #ddd;resize:vertical;">' + currentRemark + '</textarea><div style="margin-top:10px;display:flex;justify-content:space-between;"><button type="button" class="search-btn" onclick="this.form.querySelector(\\'textarea\\').value=\\'\\'">清空备注</button><button type="submit" name="save_remark" value="1" class="search-btn">💾 保存备注</button></div>';
+    
+    document.body.appendChild(modal);
+
+    modal.querySelector('.close-btn').onclick = function(){modal.remove(); overlay.remove();};
+    overlay.onclick = function(){modal.remove(); overlay.remove();};
+}
+
+// 上传文件弹窗 - 修复：添加管理令牌
+function uploadFiles(manageToken){
+    const existingModal = document.getElementById('uploadModal');
+    const existingOverlay = document.getElementById('uploadOverlay');
+    if(existingModal) existingModal.remove();
+    if(existingOverlay) existingOverlay.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'uploadOverlay';
+    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.3);z-index:999;';
+    document.body.appendChild(overlay);
+
+    const modal = document.createElement('div');
+    modal.id = 'uploadModal';
+    modal.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:500px;max-width:90%;max-height:80%;padding:10px;background:white;border:1px solid #ccc;box-shadow:0 0 12px rgba(0,0,0,0.3);z-index:1000;display:flex;flex-direction:column;';
+    
+    modal.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;"><span>上传文件</span><span class="close-btn" style="cursor:pointer;color:#d9534f;font-weight:bold;font-size:16px;">×</span></div><div style="margin-bottom:10px;"><input type="text" id="uploadPassword" placeholder="文件密码（默认：default_password）" style="width:100%;padding:6px;box-sizing:border-box;"></div><div id="uploadContent" style="flex:1;overflow:auto;padding:5px;border:1px dashed #aaa;display:flex;flex-direction:column;gap:4px;"><input type="file" id="fileInput" multiple><div id="fileList"></div><div id="progressContainer"></div></div><button id="startUpload" class="search-btn" style="margin-top:6px;">📤 开始上传</button>';
+    
+    document.body.appendChild(modal);
+
+    modal.querySelector('.close-btn').onclick = function(){modal.remove(); overlay.remove();};
+
+    const startBtn = modal.querySelector('#startUpload');
+    const fileInput = modal.querySelector('#fileInput');
+    const fileList = modal.querySelector('#fileList');
+    const progressContainer = modal.querySelector('#progressContainer');
+    const uploadPassword = modal.querySelector('#uploadPassword');
+
+    fileInput.addEventListener('change', function() {
+        fileList.innerHTML = '';
+        for(let i = 0; i < this.files.length; i++) {
+            const file = this.files[i];
+            const fileItem = document.createElement('div');
+            fileItem.style.cssText = 'padding:4px;border-bottom:1px solid #eee;font-size:12px;';
+            fileItem.textContent = file.name + ' (' + formatFileSize(file.size) + ')';
+            fileList.appendChild(fileItem);
+        }
+    });
+
+    startBtn.onclick = function(){
+        const files = fileInput.files;
+        if (files.length === 0) {
+            alert('请选择要上传的文件');
+            return;
+        }
+
+        const password = uploadPassword.value || 'default_password';
+        let completedCount = 0;
+
+        for(let i = 0; i < files.length; i++){
+            const file = files[i];
+            const progressBar = document.createElement('div');
+            progressBar.className = 'upload-progress';
+            progressBar.innerHTML = '<div class="upload-bar">0% - ' + file.name + '</div>';
+            progressContainer.appendChild(progressBar);
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const content = e.target.result;
+                const xhr = new XMLHttpRequest();
+                xhr.open('POST', 'upload.php', true);
+                xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+                
+                xhr.onload = function(){
+                    completedCount++;
+                    if(xhr.status === 200){
+                        try {
+                            const response = JSON.parse(xhr.responseText);
+                            if(response.success) {
+                                progressBar.firstChild.style.width = '100%';
+                                progressBar.firstChild.style.background = '#5cb85c';
+                                progressBar.firstChild.textContent = '完成 - ' + file.name;
+                            } else {
+                                progressBar.firstChild.style.background = '#d9534f';
+                                progressBar.firstChild.textContent = '失败 - ' + file.name + ': ' + response.error;
+                            }
+                        } catch(e) {
+                            progressBar.firstChild.style.background = '#d9534f';
+                            progressBar.firstChild.textContent = '错误 - ' + file.name;
+                        }
+                    } else {
+                        progressBar.firstChild.style.background = '#d9534f';
+                        progressBar.firstChild.textContent = '失败 - ' + file.name;
+                    }
+                    
+                    if (completedCount === files.length) {
+                        setTimeout(() => {
+                            modal.remove();
+                            overlay.remove();
+                            location.reload();
+                        }, 1000);
+                    }
+                };
+                
+                xhr.onerror = function(){
+                    completedCount++;
+                    progressBar.firstChild.style.background = '#d9534f';
+                    progressBar.firstChild.textContent = '错误 - ' + file.name;
+                    
+                    if (completedCount === files.length) {
+                        setTimeout(() => {
+                            modal.remove();
+                            overlay.remove();
+                            location.reload();
+                        }, 1000);
+                    }
+                };
+                
+                const params = 'filename=' + encodeURIComponent(file.name) + 
+                              '&password=' + encodeURIComponent(password) + 
+                              '&content=' + encodeURIComponent(content);
+                xhr.send(params);
+            };
+            
+            reader.onerror = function() {
+                completedCount++;
+                progressBar.firstChild.style.background = '#d9534f';
+                progressBar.firstChild.textContent = '读取失败 - ' + file.name;
+                
+                if (completedCount === files.length) {
+                    setTimeout(() => {
+                        modal.remove();
+                        overlay.remove();
+                        location.reload();
+                    }, 1000);
+                }
+            };
+            
+            reader.readAsText(file);
+        }
+    };
+}
+</script>
+</body>
+</html>`;
+}
+
+// 加密函数 - 动态时间加密
+function dynamicEncrypt(content, timestamp) {
+  if (!content) return '';
+  
+  const timeKey = timestamp.toString();
+  let encrypted = '';
+  
+  for (let i = 0; i < content.length; i++) {
+    const charCode = content.charCodeAt(i);
+    const timeIndex = i % timeKey.length;
+    const timeChar = timeKey.charCodeAt(timeIndex);
+    
+    // 动态加密算法：字符编码 + 时间因子 + 位置因子
+    let encryptedChar = charCode ^ timeChar;
+    encryptedChar = (encryptedChar + i + timestamp % 256) % 65536;
+    
+    // 转换为16进制，确保可打印
+    encrypted += encryptedChar.toString(16).padStart(4, '0');
+  }
+  
+  return encrypted;
+}
+
+// 解密函数
+function dynamicDecrypt(encrypted, timestamp) {
+  if (!encrypted || encrypted.length % 4 !== 0) return '';
+  
+  let decrypted = '';
+  const timeKey = timestamp.toString();
+  
+  for (let i = 0; i < encrypted.length; i += 4) {
+    const hex = encrypted.substr(i, 4);
+    const encryptedChar = parseInt(hex, 16);
+    
+    const timeIndex = (i / 4) % timeKey.length;
+    const timeChar = timeKey.charCodeAt(timeIndex);
+    
+    // 反向解密算法
+    let charCode = (encryptedChar - i/4 - timestamp % 256 + 65536) % 65536;
+    charCode = charCode ^ timeChar;
+    
+    decrypted += String.fromCharCode(charCode);
+  }
+  
+  return decrypted;
+}
+
+// 读取文件处理 (read0.php)
+async function handleReadFile(request, env) {
+  const url = new URL(request.url);
+  const filename = url.searchParams.get('filename');
+  const password = url.searchParams.get('password');
+
+  if (!filename || filename.trim() === '') {
+    return new Response(JSON.stringify({error: '请提供文件名'}), {
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+        'X-Content-Type-Options': 'nosniff'
+      }
+    });
+  }
+
+  const safeFilename = sanitizeFilename(filename.trim());
+  
+  // 检查文件是否存在
+  const fileContent = await env.MY_TEXT_STORAGE.get('file_' + safeFilename);
+  if (!fileContent) {
+    return new Response(JSON.stringify({error: '文件不存在'}), {
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+        'X-Content-Type-Options': 'nosniff'
+      }
+    });
+  }
+
+  // 检查密码
+  const storedPassword = await env.MY_TEXT_STORAGE.get('pwd_' + safeFilename);
+  if (!storedPassword) {
+    return new Response(JSON.stringify({error: '密码文件不存在'}), {
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+        'X-Content-Type-Options': 'nosniff'
+      }
+    });
+  }
+
+  // 验证密码
+  if (!password || password.trim() === '') {
+    return new Response(JSON.stringify({error: '请提供密码'}), {
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+        'X-Content-Type-Options': 'nosniff'
+      }
+    });
+  }
+
+  if (storedPassword !== password.trim()) {
+    return new Response(JSON.stringify({error: '密码错误'}), {
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+        'X-Content-Type-Options': 'nosniff'
+      }
+    });
+  }
+
+  // 构建返回结果（明文，用于编辑）
+  const domain = request.headers.get('host');
+  const fileLink = 'https://' + domain + '/z/' + encodeURIComponent(safeFilename);
+
+  const response = {
+    content: fileContent,
+    fileLink: fileLink
+  };
+
+  return new Response(JSON.stringify(response), {
+    headers: {
+      'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': '*',
+      'X-Content-Type-Options': 'nosniff'
+    }
+  });
+}
+
+// 安全文件下载处理 - 增强版
 async function handleSecureFileDownload(filename, request, env) {
   try {
     // 解码文件名
     const decodedFilename = decodeURIComponent(filename);
     const safeFilename = sanitizeFilename(decodedFilename);
-    const encryptedContent = await env.MY_TEXT_STORAGE.get('file_' + safeFilename);
+    const content = await env.MY_TEXT_STORAGE.get('file_' + safeFilename);
     
-    if (!encryptedContent) {
+    if (!content) {
       return new Response('文件不存在', { 
         status: 404,
-        headers: securityHeaders()
+        headers: {
+          'Content-Type': 'text/plain; charset=utf-8',
+          'Access-Control-Allow-Origin': '*',
+          'X-Content-Type-Options': 'nosniff'
+        }
       });
     }
 
-    // 检查管理令牌
+    // 检查管理令牌 - 如果存在管理令牌，返回原始内容
     const url = new URL(request.url);
     const managementToken = url.searchParams.get('manage_token');
-    const expectedToken = await env.MY_TEXT_STORAGE.get('management_token') || 'default_manage_token_' + Date.now();
+    const expectedToken = await env.MY_TEXT_STORAGE.get('management_token') || 'default_manage_token_2024';
     
     if (managementToken && managementToken === expectedToken) {
-      // 管理访问，但仍然返回加密内容
-      const password = await env.MY_TEXT_STORAGE.get('pwd_' + safeFilename) || 'default_password';
-      const content = await aesDecrypt(encryptedContent, password);
+      // 管理访问，返回原始内容
+      let contentType = 'text/plain; charset=utf-8';
+      if (safeFilename.endsWith('.json')) {
+        contentType = 'application/json; charset=utf-8';
+      } else if (safeFilename.endsWith('.m3u') || safeFilename.endsWith('.m3u8')) {
+        contentType = 'audio/x-mpegurl; charset=utf-8';
+      } else if (safeFilename.endsWith('.txt')) {
+        contentType = 'text/plain; charset=utf-8';
+      } else if (safeFilename.endsWith('.html') || safeFilename.endsWith('.htm')) {
+        contentType = 'text/html; charset=utf-8';
+      } else if (safeFilename.endsWith('.xml')) {
+        contentType = 'application/xml; charset=utf-8';
+      }
       
       return new Response(content, {
         headers: {
-          'Content-Type': 'text/plain; charset=utf-8',
-          'X-Management-Access': 'granted',
-          ...securityHeaders()
+          'Content-Type': contentType,
+          'Access-Control-Allow-Origin': '*',
+          'X-Content-Type-Options': 'nosniff',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0',
+          'Content-Disposition': `inline; filename="${encodeURIComponent(safeFilename)}"`
         }
       });
     }
 
-    // === 强化安全检测 ===
+    // 增强的用户代理检测
     const userAgent = request.headers.get('User-Agent') || '';
-    const clientIp = request.headers.get('cf-connecting-ip') || request.headers.get('x-real-ip') || 'unknown';
+    const referer = request.headers.get('Referer') || '';
+    const accept = request.headers.get('Accept') || '';
     
-    // 1. 检测抓包软件
-    if (detectPacketSniffer(userAgent, request.headers)) {
-      // 记录抓包尝试
-      await logSecurityEvent(env, {
-        type: 'SNIFFER_DETECTED',
-        ip: clientIp,
-        userAgent: userAgent,
-        filename: safeFilename,
-        timestamp: Date.now()
-      });
+    // 播放器白名单
+    const playerWhitelist = [
+      'tvbox', 'tv-box', 'tv.box', '影视仓', 'yingshicang',
+      'ku9', 'k9player', 'k9 player', '酷9', 'k9',
+      'tivimate', 'tivi mate', 'tivi-mate', 'tivi',
+      'vlc', 'videolan', 'kodi', 
+      'mx player', 'mxplayer', 'mx',
+      'exoplayer', 'exo player',
+      'justplayer', 'just player',
+      'ottplayer', 'ott player',
+      'perfect player', 'perfectplayer',
+      'iptv', 'smartiptv', 'smart iptv',
+      'stb', 'set-top', 'set top box',
+      'android-tv', 'android tv',
+      'smarttv', 'smart tv',
+      'mag', 'infomir',
+      'okhttp', 'okhttp/', 'curl', 'wget',
+      'm3u', 'm3u8', 'hls'
+    ];
+    
+    // 抓包软件黑名单
+    const snifferBlacklist = [
+      'httpcanary', '蓝鸟', '黄鸟',
+      'fiddler', 'charles', 'wireshark', 'packetcapture',
+      'packet sniffer', 'packetsniffer', 'sniffer',
+      'mitmproxy', 'burpsuite', 'burp',
+      'proxyman', 'stream', 'thor',
+      '青花瓷', '小黄鸟', '抓包', '抓包神器',
+      'network monitor', 'networkmonitor'
+    ];
+    
+    // 浏览器特征
+    const browserKeywords = [
+      'mozilla', 'chrome', 'safari', 'edge', 'firefox', 
+      'msie', 'trident', 'opera', 'opr', 'webkit',
+      'gecko', 'netscape', 'seamonkey', 'epiphany',
+      'crios', 'fxios', 'samsungbrowser'
+    ];
+    
+    const lowerUserAgent = userAgent.toLowerCase();
+    const lowerAccept = accept.toLowerCase();
+    
+    // 决策逻辑
+    let allowAccess = false;
+    let reason = '';
+    
+    // 规则1：检查播放器白名单
+    if (playerWhitelist.some(player => lowerUserAgent.includes(player))) {
+      allowAccess = true;
+      reason = '播放器访问';
+    }
+    // 规则2：检查是否是抓包软件
+    else if (snifferBlacklist.some(sniffer => lowerUserAgent.includes(sniffer))) {
+      allowAccess = false;
+      reason = '抓包软件被阻止';
+    }
+    // 规则3：检查浏览器特征
+    else if (browserKeywords.some(browser => lowerUserAgent.includes(browser)) && 
+             (lowerAccept.includes('text/html') || lowerAccept.includes('application/xhtml+xml'))) {
+      allowAccess = false;
+      reason = '浏览器访问被阻止';
+    }
+    // 规则4：其他情况
+    else {
+      const hasPlayerFeatures = 
+        lowerUserAgent.includes('player') ||
+        lowerUserAgent.includes('播放器') ||
+        lowerAccept.includes('audio/') ||
+        lowerAccept.includes('video/') ||
+        lowerAccept.includes('application/vnd.apple.mpegurl') ||
+        lowerAccept.includes('application/x-mpegurl');
       
-      // 返回假数据
-      const fakeData = generateFakeContent();
-      const encryptedFake = await aesEncrypt(fakeData, 'fake_password_' + Date.now());
-      return new Response(encryptedFake, {
-        status: 200,
-        headers: {
-          'Content-Type': 'text/plain; charset=utf-8',
-          'X-Security-Status': 'BLOCKED',
-          ...securityHeaders()
-        }
-      });
+      if (hasPlayerFeatures) {
+        allowAccess = true;
+        reason = '播放器特征匹配';
+      } else {
+        allowAccess = false;
+        reason = '未识别的客户端';
+      }
     }
     
-    // 2. 检测合法播放器
-    if (!detectLegitPlayer(userAgent, request.headers)) {
-      // 非播放器访问
-      await logSecurityEvent(env, {
-        type: 'UNAUTHORIZED_CLIENT',
-        ip: clientIp,
-        userAgent: userAgent,
-        filename: safeFilename,
-        timestamp: Date.now()
-      });
+    // 如果不允许访问，返回加密的错误页面
+    if (!allowAccess) {
+      const timestamp = Math.floor(Date.now() / 60000);
+      const errorMessage = `访问被拒绝 (${reason}) - ${new Date().toISOString()}`;
+      const encryptedError = dynamicEncrypt(errorMessage, timestamp);
       
-      return new Response('访问被拒绝', {
+      return new Response(encryptedError, { 
         status: 403,
         headers: {
           'Content-Type': 'text/plain; charset=utf-8',
-          'X-Security-Reason': 'Client not authorized',
-          ...securityHeaders()
+          'Access-Control-Allow-Origin': '*',
+          'X-Content-Type-Options': 'nosniff',
+          'X-Access-Reason': reason,
+          'X-Encryption-Time': timestamp.toString()
         }
       });
     }
     
-    // 3. 验证客户端指纹
-    const clientFingerprint = request.headers.get('X-Client-Fingerprint');
-    const clientTime = request.headers.get('X-Client-Time');
-    const securityToken = request.headers.get('X-Security-Token');
+    // 动态时间加密内容
+    const timestamp = Math.floor(Date.now() / 60000);
+    const encryptedContent = dynamicEncrypt(content, timestamp);
     
-    if (!clientFingerprint || !clientTime || !securityToken) {
-      return new Response('需要安全验证', {
-        status: 401,
-        headers: {
-          'Content-Type': 'text/plain; charset=utf-8',
-          'X-Security-Reason': 'Missing security headers',
-          ...securityHeaders()
-        }
-      });
+    // 设置Content-Type
+    let contentType = 'text/plain; charset=utf-8';
+    if (safeFilename.endsWith('.json')) {
+      contentType = 'application/json; charset=utf-8';
+    } else if (safeFilename.endsWith('.m3u') || safeFilename.endsWith('.m3u8')) {
+      contentType = 'audio/x-mpegurl; charset=utf-8';
+    } else if (safeFilename.endsWith('.txt')) {
+      contentType = 'text/plain; charset=utf-8';
+    } else if (safeFilename.endsWith('.html') || safeFilename.endsWith('.htm')) {
+      contentType = 'text/html; charset=utf-8';
+    } else if (safeFilename.endsWith('.xml')) {
+      contentType = 'application/xml; charset=utf-8';
     }
     
-    // 4. 获取密码并解密
-    const password = await env.MY_TEXT_STORAGE.get('pwd_' + safeFilename) || 'default_password';
-    let content;
-    
-    try {
-      content = await aesDecrypt(encryptedContent, password);
-    } catch (error) {
-      // 解密失败，可能是密码错误或数据损坏
-      return new Response('文件损坏', {
-        status: 500,
-        headers: securityHeaders()
-      });
-    }
-    
-    // 5. 应用多层混淆加密
-    const chineseConfused = chineseConfusionEncrypt(content);
-    const timeConfused = timeBasedConfusionEncrypt(chineseConfused);
-    
-    // 6. 添加水印
-    const watermarked = addWatermark(timeConfused, {
-      ip: clientIp,
-      time: Date.now(),
-      filename: safeFilename
+    // 返回加密内容
+    return new Response(encryptedContent, {
+      headers: {
+        'Content-Type': contentType,
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, X-Client-Time, X-Management-Access',
+        'X-Content-Type-Options': 'nosniff',
+        'X-Encryption-Time': timestamp.toString(),
+        'X-Encryption-Version': '1.0',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+        'Content-Disposition': `inline; filename="${encodeURIComponent('encrypted_' + safeFilename)}"`
+      }
     });
     
-    // 记录成功访问
-    await logSecurityEvent(env, {
-      type: 'FILE_ACCESS',
-      ip: clientIp,
-      userAgent: userAgent.substring(0, 100),
-      filename: safeFilename,
-      timestamp: Date.now(),
-      success: true
-    });
-    
-    // 返回最终加密内容
-    return new Response(watermarked, {
+  } catch (error) {
+    return new Response(`下载错误: ${error.message}`, { 
+      status: 500,
       headers: {
         'Content-Type': 'text/plain; charset=utf-8',
-        'X-Encryption-Level': 'AES256+GCM+TIME+CHINESE',
-        'X-Security-Status': 'ENCRYPTED',
-        ...securityHeaders()
+        'Access-Control-Allow-Origin': '*',
+        'X-Content-Type-Options': 'nosniff'
       }
-    });
-    
-  } catch (error) {
-    console.error('Secure download error:', error);
-    return new Response('系统错误', {
-      status: 500,
-      headers: securityHeaders()
     });
   }
 }
 
-// ========== 辅助函数 ==========
-
-// 安全头部
-function securityHeaders() {
-  return {
-    'X-Content-Type-Options': 'nosniff',
-    'X-Frame-Options': 'DENY',
-    'X-XSS-Protection': '1; mode=block',
-    'Referrer-Policy': 'no-referrer',
-    'Permissions-Policy': 'geolocation=(), microphone=(), camera=()',
-    'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
-    'Pragma': 'no-cache',
-    'Expires': '0'
-  };
-}
-
-// 生成假数据
-function generateFakeContent() {
-  const fakeTemplates = [
-    '错误：文件格式损坏，请联系管理员',
-    '系统维护中，请稍后重试',
-    '安全检测失败，访问被拒绝',
-    '此内容受数字版权保护，无法显示',
-    '解码器初始化失败，请更新播放器'
-  ];
-  
-  const randomIndex = Math.floor(Math.random() * fakeTemplates.length);
-  const timestamp = new Date().toISOString();
-  const randomData = Math.random().toString(36).substring(2);
-  
-  return `${fakeTemplates[randomIndex]}\n时间: ${timestamp}\nID: ${randomData}`;
-}
-
-// 添加水印
-function addWatermark(content, metadata) {
-  const watermark = `\n\n<!-- SECURITY MARK: ${btoa(JSON.stringify(metadata))} -->`;
-  return content + watermark;
-}
-
-// 记录安全事件
-async function logSecurityEvent(env, event) {
+// 获取动态加密密钥接口
+async function handleGetEncryptionKey(request, env) {
   try {
-    const eventId = `security_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    await env.MY_TEXT_STORAGE.put(`log_${eventId}`, JSON.stringify(event));
+    const url = new URL(request.url);
+    const clientTime = request.headers.get('X-Client-Time') || url.searchParams.get('t');
+    const currentTime = Math.floor(Date.now() / 60000);
     
-    // 保留最近的1000条日志
-    const allLogs = await env.MY_TEXT_STORAGE.list({ prefix: 'log_' });
-    if (allLogs.keys.length > 1000) {
-      const toDelete = allLogs.keys.slice(0, allLogs.keys.length - 1000);
-      for (const key of toDelete) {
-        await env.MY_TEXT_STORAGE.delete(key.name);
+    // 验证时间戳（允许前后1分钟的误差）
+    let timestamp;
+    if (clientTime) {
+      const clientTimeInt = parseInt(clientTime);
+      if (Math.abs(clientTimeInt - currentTime) <= 1) {
+        timestamp = clientTimeInt;
+      } else {
+        timestamp = currentTime;
       }
+    } else {
+      timestamp = currentTime;
     }
+    
+    // 生成动态密钥
+    const key = {
+      timestamp: timestamp,
+      algorithm: 'dynamic-xor-time',
+      version: '1.0'
+    };
+    
+    return new Response(JSON.stringify(key), {
+      headers: {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Access-Control-Allow-Origin': '*',
+        'X-Content-Type-Options': 'nosniff',
+        'Cache-Control': 'no-cache, no-store, must-revalidate'
+      }
+    });
+    
   } catch (error) {
-    console.error('Failed to log security event:', error);
+    return new Response(JSON.stringify({error: error.message}), {
+      status: 500,
+      headers: {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Access-Control-Allow-Origin': '*',
+        'X-Content-Type-Options': 'nosniff'
+      }
+    });
   }
 }
 
-// 安全验证接口
-async function handleSecurityVerification(request, env) {
+// 上传文件处理 (upload.php)
+async function handleUploadFile(request, env) {
   try {
-    const data = await request.json();
-    const { action, token, timestamp } = data;
+    const formData = await parseFormData(request);
     
-    if (action === 'verify_client') {
-      // 验证客户端
-      const isValid = await verifyClientToken(token, timestamp);
-      
+    const filename = formData.filename;
+    const password = formData.password;
+    const content = formData.content;
+
+    if (!filename) {
       return new Response(JSON.stringify({
-        verified: isValid,
-        sessionKey: isValid ? generateRandomKey(32) : null,
-        expiresIn: 3600
+        success: false,
+        error: '缺少文件名'
       }), {
         headers: {
           'Content-Type': 'application/json',
-          ...securityHeaders()
+          'Access-Control-Allow-Origin': '*',
+          'X-Content-Type-Options': 'nosniff'
         }
       });
     }
+
+    if (!content) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: '文件内容不能为空'
+      }), {
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+          'X-Content-Type-Options': 'nosniff'
+        }
+      });
+    }
+
+    const safeFilename = sanitizeFilename(filename.trim());
+    const finalPassword = password || 'default_password';
     
-    return new Response(JSON.stringify({ error: 'Invalid action' }), {
-      status: 400,
-      headers: securityHeaders()
-    });
-    
+    try {
+      // 保存文件内容
+      await env.MY_TEXT_STORAGE.put('file_' + safeFilename, content);
+      // 保存密码
+      await env.MY_TEXT_STORAGE.put('pwd_' + safeFilename, finalPassword);
+      // 保存元数据
+      const metadata = {
+        ctime: Date.now(),
+        mtime: Date.now(),
+        size: content.length,
+        encryption: {
+          enabled: true,
+          algorithm: 'dynamic-time',
+          last_encrypted: Math.floor(Date.now() / 60000)
+        }
+      };
+      await env.MY_TEXT_STORAGE.put('meta_' + safeFilename, JSON.stringify(metadata));
+
+      const domain = request.headers.get('host');
+      const link = 'https://' + domain + '/z/' + encodeURIComponent(safeFilename);
+
+      return new Response(JSON.stringify({
+        success: true,
+        fileLink: link,
+        filename: safeFilename,
+        encryption: {
+          enabled: true,
+          algorithm: 'dynamic-time'
+        }
+      }), {
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+          'X-Content-Type-Options': 'nosniff'
+        }
+      });
+    } catch (error) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: '文件保存失败: ' + error.message
+      }), {
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+          'X-Content-Type-Options': 'nosniff'
+        }
+      });
+    }
   } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500,
-      headers: securityHeaders()
+    return new Response(JSON.stringify({
+      success: false,
+      error: '解析表单数据失败: ' + error.message
+    }), {
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+        'X-Content-Type-Options': 'nosniff'
+      }
     });
   }
 }
 
-// 验证客户端令牌
-async function verifyClientToken(token, timestamp) {
+// 更新密码处理接口
+async function handleUpdatePassword(request, env) {
+  const formData = await parseFormData(request);
+  
+  const filename = formData.filename;
+  const newPassword = formData.new_password;
+
+  if (!filename || !newPassword) {
+    return new Response(JSON.stringify({
+      success: false,
+      error: '缺少 filename 或 new_password'
+    }), {
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+        'X-Content-Type-Options': 'nosniff'
+      }
+    });
+  }
+
+  const safeFilename = sanitizeFilename(filename.trim());
+  
   try {
-    const decoded = atob(token);
-    const [fingerprint, clientTime] = decoded.split('|');
-    
-    const currentTime = Math.floor(Date.now() / 1000);
-    const timeDiff = Math.abs(currentTime - parseInt(clientTime));
-    
-    // 允许5分钟的时间差
-    return timeDiff <= 300 && fingerprint.length > 10;
-  } catch {
-    return false;
+    // 检查文件是否存在
+    const fileExists = await env.MY_TEXT_STORAGE.get('file_' + safeFilename);
+    if (!fileExists) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: '文件不存在'
+      }), {
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+          'X-Content-Type-Options': 'nosniff'
+        }
+      });
+    }
+
+    // 更新密码
+    await env.MY_TEXT_STORAGE.put('pwd_' + safeFilename, newPassword.trim());
+
+    return new Response(JSON.stringify({
+      success: true,
+      message: '密码更新成功'
+    }), {
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+        'X-Content-Type-Options': 'nosniff'
+      }
+    });
+  } catch (error) {
+    return new Response(JSON.stringify({
+      success: false,
+      error: '密码更新失败: ' + error.message
+    }), {
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+        'X-Content-Type-Options': 'nosniff'
+      }
+    });
   }
 }
 
-// 原有的辅助函数保持不变（需要添加）
-function sanitizeFilename(name) {
-  return name.replace(/[^a-zA-Z0-9_\-\u4e00-\u9fa5.]/g, '_').substring(0, 100);
-}
-
+// 辅助函数：解析表单数据
 async function parseFormData(request) {
   const contentType = request.headers.get('content-type') || '';
   
@@ -781,71 +1852,14 @@ async function parseFormData(request) {
   }
 }
 
-// 其他处理函数（read0.php, upload.php等）需要相应修改以使用新的加密函数
-// 由于长度限制，这里只展示关键修改
-
-async function handleUploadFile(request, env) {
-  try {
-    const formData = await parseFormData(request);
-    const { filename, password, content } = formData;
-    
-    if (!filename || !content) {
-      return errorResponse('缺少必要参数');
-    }
-    
-    const safeFilename = sanitizeFilename(filename.trim());
-    const finalPassword = password || generateRandomKey(16);
-    
-    // 使用多层加密
-    const aesEncrypted = await aesEncrypt(content, finalPassword);
-    
-    // 保存加密内容
-    await env.MY_TEXT_STORAGE.put('file_' + safeFilename, aesEncrypted);
-    await env.MY_TEXT_STORAGE.put('pwd_' + safeFilename, finalPassword);
-    
-    // 保存元数据
-    const metadata = {
-      ctime: Date.now(),
-      mtime: Date.now(),
-      size: content.length,
-      encryption: 'AES256-GCM+CHINESE+TIME',
-      securityLevel: 'HIGH'
-    };
-    await env.MY_TEXT_STORAGE.put('meta_' + safeFilename, JSON.stringify(metadata));
-    
-    const domain = request.headers.get('host');
-    const link = `https://${domain}/z/${encodeURIComponent(safeFilename)}`;
-    
-    return new Response(JSON.stringify({
-      success: true,
-      fileLink: link,
-      filename: safeFilename,
-      encryption: 'ENABLED',
-      security: 'ACTIVATED'
-    }), {
-      headers: {
-        'Content-Type': 'application/json',
-        ...securityHeaders()
-      }
-    });
-    
-  } catch (error) {
-    return errorResponse(error.message);
-  }
+// 辅助函数：文件名安全处理
+function sanitizeFilename(name) {
+  return name.replace(/[^a-zA-Z0-9_\-\u4e00-\u9fa5.]/g, '_');
 }
 
-function errorResponse(message) {
-  return new Response(JSON.stringify({
-    success: false,
-    error: message
-  }), {
-    status: 400,
-    headers: {
-      'Content-Type': 'application/json',
-      ...securityHeaders()
-    }
-  });
+// 辅助函数：格式化文件大小
+function formatFileSize(bytes) {
+  if (bytes < 1024) return bytes + 'B';
+  if (bytes < 1048576) return (bytes / 1024).toFixed(2) + 'KB';
+  return (bytes / 1048576).toFixed(2) + 'MB';
 }
-
-// 注意：需要在Cloudflare环境变量中设置管理令牌
-// 建议：MY_TEXT_STORAGE 使用KV存储
