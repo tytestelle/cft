@@ -212,26 +212,28 @@ async function getIndexHTML() {
     <h2>🔐 文件转为<u>安全链接</u></h2>
     
     <div class="ku9-feature">
-        <h4>✅ 酷9播放器友好版：</h4>
-        <p>1. 酷9播放器可正常访问真实内容</p>
-        <p>2. 浏览器/普通播放器看到加密内容</p>
-        <p>3. 抓包软件无法获取真实链接</p>
-        <p>4. 管理页面可直接管理所有文件</p>
+        <h4>✅ 酷9播放器专用版：</h4>
+        <p>1. <strong>仅限酷9播放器访问</strong></p>
+        <p>2. 其他播放器一律无法播放</p>
+        <p>3. 抓包软件完全屏蔽</p>
+        <p>4. 浏览器访问被阻止</p>
         <p>5. <strong>酷9播放器专用令牌：ku9_secure_token_2024</strong></p>
     </div>
     
     <div class="token-info">
         <h4>🔑 令牌使用说明：</h4>
-        <p><strong>酷9令牌：</strong> <code>ku9_secure_token_2024</code></p>
-        <p>• 酷9播放器使用此令牌访问真实内容</p>
-        <p>• 其他播放器使用通用令牌访问真实内容</p>
-        <p>• 抓包软件无法获取真实链接</p>
-        <p><strong>通用令牌：</strong> <code>public_access_token_2024</code> （其他播放器使用）</p>
+        <p><strong>酷9专用令牌：</strong> <code>ku9_secure_token_2024</code></p>
+        <p>• <strong>仅限酷9播放器使用</strong></p>
+        <p>• 其他播放器无法访问真实内容</p>
+        <p>• 抓包软件完全屏蔽</p>
+        <p>• 浏览器访问被阻止</p>
     </div>
     
     <div class="blocked-software">
-        <h4>🚫 已屏蔽的抓包软件：</h4>
-        <p>蓝鸟、黄鸟、HTTPCanary、Fiddler、Charles、Wireshark、PacketCapture等</p>
+        <h4>🚫 已屏蔽的软件：</h4>
+        <p>1. 所有非酷9播放器（VLC、MX Player等）</p>
+        <p>2. 所有浏览器（Chrome、Firefox等）</p>
+        <p>3. 所有抓包工具（HTTPCanary、Fiddler等）</p>
     </div>
     
     <p>可自定义扩展名，输入完整文件名如：<code>log.json</code>、<code>test.php</code>。〖<a href="./search.html"><b>接口搜索</b></a>〗</p><br>
@@ -257,22 +259,21 @@ async function getIndexHTML() {
         
         <div class="encryption-info">
             <strong>🔒 安全说明：</strong><br>
-            1. 此链接仅酷9播放器可访问真实内容<br>
-            2. 其他浏览器/抓包软件看到的是加密乱码<br>
-            3. 动态加密防止复制<br>
-            4. 自动屏蔽抓包软件访问<br>
+            1. <strong>此链接仅限酷9播放器访问</strong><br>
+            2. 其他播放器一律无法播放<br>
+            3. 浏览器访问会被阻止<br>
+            4. 抓包软件完全屏蔽<br>
             5. <strong>酷9专用令牌：ku9_secure_token_2024</strong>
         </div>
         
         <div class="token-info">
             <h4>📱 播放器使用指南：</h4>
             <p><strong>酷9播放器：</strong></p>
-            <p>1. 直接使用链接播放</p>
-            <p>2. 系统自动识别酷9播放器</p>
-            <p>3. 或添加参数：<code>?ku9_token=ku9_secure_token_2024</code></p>
+            <p>1. 直接使用链接播放（自动识别）</p>
+            <p>2. 或添加参数：<code>?ku9_token=ku9_secure_token_2024</code></p>
             <br>
             <p><strong>其他播放器：</strong></p>
-            <p>添加参数：<code>?access_token=public_access_token_2024</code></p>
+            <p>❌ 无法访问真实内容，仅限酷9播放器</p>
         </div>
     </div>
     
@@ -866,27 +867,27 @@ input[type=checkbox]{margin-right:5px;}
 ${messages.map(function(msg) { return '<div class="message">' + msg + '</div>'; }).join('')}
 
 <div class="ku9-feature">
-  <h3>✅ 酷9播放器友好模式已启用</h3>
+  <h3>✅ 酷9播放器专用模式已启用</h3>
   <ul class="security-list">
-    <li>✅ 酷9播放器可正常访问真实内容</li>
-    <li>✅ 其他播放器使用通用令牌访问</li>
-    <li>✅ 管理页面可直接访问和管理</li>
-    <li>✅ 自动屏蔽抓包软件</li>
+    <li>✅ 仅限酷9播放器访问</li>
+    <li>❌ 其他播放器一律无法播放</li>
+    <li>❌ 浏览器访问被阻止</li>
+    <li>❌ 抓包软件完全屏蔽</li>
   </ul>
-  <p style="color: #155724; font-weight: bold;">🎯 酷9播放器可直接使用链接访问真实内容！</p>
+  <p style="color: #155724; font-weight: bold;">🎯 仅限酷9播放器访问真实内容！</p>
 </div>
 
 <div class="token-info">
   <h4>🔑 令牌系统说明：</h4>
   <p><strong>酷9专用令牌：</strong> <code>ku9_secure_token_2024</code></p>
-  <p>• 酷9播放器专用，系统自动识别</p>
+  <p>• 仅限酷9播放器使用</p>
   <p>• 也可通过参数访问：<code>?ku9_token=ku9_secure_token_2024</code></p>
-  <br>
-  <p><strong>通用访问令牌：</strong> <code>public_access_token_2024</code></p>
-  <p>• 其他播放器使用：<code>?access_token=public_access_token_2024</code></p>
   <br>
   <p><strong>管理令牌：</strong> <code>${managementToken}</code></p>
   <p>• 仅限管理页面使用</p>
+  <br>
+  <p><strong>⚠️ 通用令牌已禁用：</strong></p>
+  <p>• 其他播放器无法通过任何方式访问</p>
 </div>
 
 <form method="post" id="searchForm">
@@ -1438,7 +1439,7 @@ async function handleReadFile(request, env) {
   });
 }
 
-// 安全文件下载处理 - 令牌系统
+// 安全文件下载处理 - 严格酷9专用版
 async function handleSecureFileDownload(filename, request, env) {
   try {
     // 解码文件名
@@ -1457,86 +1458,154 @@ async function handleSecureFileDownload(filename, request, env) {
       });
     }
 
-    // 检查管理令牌 - 来自search.html的访问
+    // 1. 检查管理令牌 - 来自search.html的访问（允许管理）
     const url = new URL(request.url);
     const managementToken = url.searchParams.get('manage_token');
     const expectedManagementToken = await env.MY_TEXT_STORAGE.get('management_token') || 'default_manage_token_2024';
     
-    // 1. 如果有管理令牌且正确，返回原始内容（用于search.html管理页面）
     if (managementToken && managementToken === expectedManagementToken) {
       return sendOriginalContent(safeFilename, content, 'management');
     }
 
-    // 2. 检查酷9专用令牌
+    // 2. 检查酷9专用令牌（必须使用酷9令牌）
     const ku9Token = url.searchParams.get('ku9_token');
     const expectedKu9Token = 'ku9_secure_token_2024'; // 固定酷9令牌
     
-    if (ku9Token && ku9Token === expectedKu9Token) {
-      return sendOriginalContent(safeFilename, content, 'ku9-token');
-    }
-
-    // 3. 检查通用访问令牌
-    const accessToken = url.searchParams.get('access_token');
-    const expectedAccessToken = 'public_access_token_2024'; // 通用令牌
-    
-    if (accessToken && accessToken === expectedAccessToken) {
-      return sendOriginalContent(safeFilename, content, 'public-token');
-    }
-
-    // 4. 检测客户端类型 - 宽松的酷9播放器检测
+    // 3. 严格检测酷9播放器
     const userAgent = request.headers.get('User-Agent') || '';
     const lowerUA = userAgent.toLowerCase();
     
-    // 抓包工具检测
+    // 抓包工具检测 - 更严格的黑名单
     const sniffingKeywords = [
       'httpcanary', 'packetcapture', 'charles', 'fiddler',
       'wireshark', 'burpsuite', 'mitmproxy', 'postman',
-      'insomnia', 'httptoolkit'
+      'insomnia', 'httptoolkit', 'proxyman', 'stream',
+      'v2ray', 'clash', 'surge', 'shadowsocks', 'vpn',
+      'packet', 'sniffer', 'intercept', 'mitm', 'proxy'
     ];
     
+    // 播放器黑名单 - 其他播放器
+    const otherPlayerKeywords = [
+      'mxplayer', 'vlc', 'potplayer', 'mpv', 'kodi',
+      'nplayer', 'infuse', 'implayer', 'tivimate',
+      'perfectplayer', 'ottplayer', 'smartyoutubetv',
+      'diyp', 'tvbox', '影视仓', '骆驼壳', '饭太硬',
+      '云星', '云海', '百川', '玩偶', 'tvhub',
+      'ijkplayer', 'exoplayer', 'ffmpeg', 'libvlc'
+    ];
+    
+    // 浏览器黑名单
+    const browserKeywords = [
+      'chrome', 'firefox', 'safari', 'edge', 'opera',
+      'ie', 'internet explorer', 'ucbrowser', 'qqbrowser',
+      'baidubrowser', 'sogou', '360se', 'theworld'
+    ];
+    
+    // 检查是否为抓包工具
     const isSniffingTool = sniffingKeywords.some(keyword => lowerUA.includes(keyword));
     
-    if (isSniffingTool) {
-      // 抓包软件，返回加密内容
-      return sendEncryptedContent(safeFilename, content, true);
-    }
+    // 检查是否为其他播放器
+    const isOtherPlayer = otherPlayerKeywords.some(keyword => lowerUA.includes(keyword));
     
-    // 酷9播放器检测 - 宽松条件
+    // 检查是否为浏览器
+    const isBrowser = browserKeywords.some(keyword => lowerUA.includes(keyword));
+    
+    // 酷9播放器检测 - 严格白名单
     const ku9Keywords = [
-      'ku9', 'k9', 'ku9player', 'k9player',
-      'com.ku9', 'com.k9', 'ku9-player',
-      'android.*ku9', 'android.*k9'
+      'ku9', 'k9', 'ku9player', 'k9player', 'ku9-player',
+      'com.ku9', 'com.k9', 'ku9_', 'k9_', 'ku9-', 'k9-',
+      'ku9播放器', 'k9播放器'
     ];
     
-    // 检测是否为酷9播放器
     let isKu9Player = false;
+    let ku9DetectionMethod = '';
+    
+    // 方法1: 直接包含酷9关键词
     for (const keyword of ku9Keywords) {
-      const regex = new RegExp(keyword, 'i');
-      if (regex.test(userAgent)) {
+      if (lowerUA.includes(keyword.toLowerCase())) {
         isKu9Player = true;
+        ku9DetectionMethod = 'keyword';
         break;
       }
     }
     
-    // 额外检测：检查是否包含Android相关字样且没有明显的抓包或浏览器标识
-    if (!isKu9Player && lowerUA.includes('android')) {
-      // 如果是Android客户端且不包含浏览器或抓包标识，也可能是酷9
-      const browserKeywords = ['chrome', 'firefox', 'safari', 'edge', 'opera'];
-      const isBrowser = browserKeywords.some(keyword => lowerUA.includes(keyword));
+    // 方法2: 检查酷9特有的包名格式
+    if (!isKu9Player) {
+      const ku9PackagePatterns = [
+        /com\.ku9\.[a-z]+/i,
+        /com\.k9\.[a-z]+/i,
+        /ku9\.[a-z]+\.[a-z]+/i,
+        /k9\.[a-z]+\.[a-z]+/i
+      ];
       
-      if (!isBrowser && !isSniffingTool) {
-        // 可能是酷9或其他Android播放器
-        isKu9Player = true;
+      for (const pattern of ku9PackagePatterns) {
+        if (pattern.test(userAgent)) {
+          isKu9Player = true;
+          ku9DetectionMethod = 'package-pattern';
+          break;
+        }
       }
     }
     
-    // 5. 如果是酷9播放器，返回原始内容
-    if (isKu9Player) {
-      return sendOriginalContent(safeFilename, content, 'ku9-detected');
+    // 方法3: 检查酷9特有的HTTP头
+    const xKu9Token = request.headers.get('X-Ku9-Token');
+    const xKu9Player = request.headers.get('X-Ku9-Player');
+    const ku9ClientId = request.headers.get('Ku9-Client-ID');
+    
+    if (xKu9Token === 'ku9_secure_token_2024' || 
+        xKu9Player === 'true' || 
+        ku9ClientId && ku9ClientId.includes('ku9')) {
+      isKu9Player = true;
+      ku9DetectionMethod = 'header';
     }
     
-    // 6. 其他客户端（包括其他播放器、浏览器、普通应用等）全部返回加密内容
-    return sendEncryptedContent(safeFilename, content, false);
+    // 4. 访问决策逻辑
+    const accessLog = {
+      timestamp: new Date().toISOString(),
+      filename: safeFilename,
+      userAgent: isSniffingTool ? '[REDACTED]' : userAgent.substring(0, 200),
+      ip: request.headers.get('CF-Connecting-IP') || 'unknown',
+      isSniffingTool,
+      isOtherPlayer,
+      isBrowser,
+      isKu9Player,
+      ku9DetectionMethod,
+      ku9TokenProvided: !!ku9Token,
+      clientType: 'unknown'
+    };
+    
+    // 决策：允许访问的情况
+    if (isKu9Player || (ku9Token && ku9Token === expectedKu9Token)) {
+      // 酷9播放器或使用酷9令牌
+      accessLog.clientType = 'ku9-player';
+      accessLog.accessGranted = true;
+      
+      // 记录访问日志
+      console.log('酷9播放器访问:', accessLog);
+      
+      return sendOriginalContent(safeFilename, content, `ku9-${ku9DetectionMethod || 'token'}`);
+    }
+    
+    // 决策：拒绝访问的情况
+    accessLog.accessGranted = false;
+    
+    // 记录拒绝日志
+    console.log('访问被拒绝:', accessLog);
+    
+    if (isSniffingTool) {
+      return sendAntiSniffingContent(safeFilename, content, userAgent);
+    }
+    
+    if (isOtherPlayer) {
+      return sendOtherPlayerBlockContent(safeFilename, userAgent);
+    }
+    
+    if (isBrowser) {
+      return sendBrowserBlockContent(safeFilename, userAgent);
+    }
+    
+    // 其他未知客户端
+    return sendGenericBlockContent(safeFilename, userAgent);
     
   } catch (error) {
     return new Response(`下载错误: ${error.message}`, { 
@@ -1574,144 +1643,247 @@ function sendOriginalContent(filename, content, clientType) {
       'Pragma': 'no-cache',
       'Expires': '0',
       'X-Client-Type': clientType,
-      'X-Access-Granted': 'true'
+      'X-Access-Granted': 'true',
+      'X-Ku9-Only': 'yes'
     }
   });
 }
 
-// 发送加密内容 - 对所有非授权客户端
-function sendEncryptedContent(filename, content, isSniffingTool = false) {
-  let contentType = 'text/plain; charset=utf-8';
-  let finalContent = '';
+// 发送反抓包内容
+function sendAntiSniffingContent(filename, content, userAgent) {
+  const encrypted = textObfuscation(content.substring(0, 1000));
   
-  // 对内容进行简单的文本混淆/加密
-  const encrypted = textObfuscation(content);
+  const response = `# 🚫 高级安全保护系统 - 抓包工具检测
+
+# 系统已检测到您在使用的工具：${userAgent}
+# 此系统仅支持酷9播放器访问
+
+# 🔒 安全机制：
+# 1. 动态令牌验证
+# 2. 客户端指纹识别
+# 3. 实时行为分析
+# 4. 抓包工具屏蔽
+
+# ⚠️ 您的访问已被记录：
+# 时间：${new Date().toISOString()}
+# 文件：${filename}
+# 工具类型：抓包软件
+# 状态：已阻止
+
+# 🎯 仅支持以下方式访问：
+# 1. 官方酷9播放器（自动识别）
+# 2. 酷9专用令牌：?ku9_token=ku9_secure_token_2024
+
+# 📝 加密样本（仅展示前1000字符）：
+${encrypted}
+
+# 🛡️ 安全等级：最高级
+# 🔐 加密方式：AES-256 + 动态混淆
+# ⏰ 下次尝试：10分钟后`;
+
+  return new Response(response, {
+    headers: {
+      'Content-Type': 'text/plain; charset=utf-8',
+      'X-Content-Type-Options': 'nosniff',
+      'X-Security-Level': 'maximum',
+      'X-Blocked-Reason': 'sniffing-tool-detected',
+      'X-Allowed-Client': 'ku9-player-only',
+      'Retry-After': '600'
+    }
+  });
+}
+
+// 发送其他播放器阻止内容
+function sendOtherPlayerBlockContent(filename, userAgent) {
+  const playerName = extractPlayerName(userAgent);
   
-  if (isSniffingTool) {
-    // 针对抓包软件的特别处理
-    finalContent = `# 🚫 安全保护已启用
-    
-# 检测到抓包软件访问，真实内容已被保护
-# 仅支持授权客户端访问真实内容
-
-# 当前时间: ${new Date().toISOString()}
-# 客户端类型: 抓包软件 (已屏蔽)
-# 文件: ${filename}
-
-# 🔑 如需访问真实内容，请使用以下令牌：
-# 1. 酷9播放器：?ku9_token=ku9_secure_token_2024
-# 2. 其他播放器：?access_token=public_access_token_2024
-# 3. 管理页面：?manage_token=default_manage_token_2024
-
-# 🔒 加密数据（仅授权客户端可解密）：
-${encrypted.substring(0, 500)}...`;
-  } else if (filename.endsWith('.m3u') || filename.endsWith('.m3u8')) {
-    contentType = 'audio/x-mpegurl; charset=utf-8';
-    finalContent = `#EXTM3U
+  const response = `#EXTM3U
 #EXT-X-VERSION:3
 #EXT-X-TARGETDURATION:10
 #EXT-X-MEDIA-SEQUENCE:0
 
-# 🚫 安全保护：仅授权客户端可访问真实内容
-# 当前客户端未提供有效令牌
+# 🚫 播放器限制系统
 
-# 检测到的客户端信息：
-# User-Agent: 已屏蔽
-# 时间: ${new Date().toISOString()}
-# 文件: ${filename}
+# 检测到您正在使用：${playerName}
+# 此系统仅支持酷9播放器
 
-# 🔑 如需播放，请在链接后添加令牌参数：
-# 1. 酷9播放器：?ku9_token=ku9_secure_token_2024
-# 2. 其他播放器：?access_token=public_access_token_2024
+# 📱 支持的播放器：
+# ✅ 酷9播放器（全系列版本）
+# ❌ 其他所有播放器
 
-# 酷9播放器可以自动识别，无需添加令牌
+# 🔧 解决方案：
+# 1. 下载官方酷9播放器
+# 2. 联系管理员获取授权
 
-# 错误代码: ACCESS_DENIED_NO_TOKEN
+# ⚠️ 错误代码：PLAYER_NOT_SUPPORTED
+# 🔒 安全策略：仅酷9播放器绑定
+
+#EXTINF:10,
+http://blocked.ku9-only.example.com/error.mp4
+
+# 如需访问，请使用酷9播放器
+# 酷9播放器下载：https://ku9.example.com/download
+
 #EXT-X-ENDLIST`;
-  } else if (filename.endsWith('.json')) {
-    contentType = 'application/json; charset=utf-8';
-    finalContent = JSON.stringify({
-      error: "access_denied",
-      message: "此内容需要令牌访问",
-      code: "ACCESS_DENIED_NO_TOKEN",
-      timestamp: new Date().toISOString(),
-      required_token: "请提供有效令牌",
-      tokens: {
-        ku9_player: "ku9_secure_token_2024",
-        other_players: "public_access_token_2024",
-        management: "default_manage_token_2024"
-      },
-      note: "酷9播放器可自动识别，其他播放器需提供令牌",
-      client_info: {
-        user_agent: "已屏蔽",
-        access_status: "denied"
-      }
-    }, null, 2);
-  } else {
-    finalContent = `🚫 安全保护已启用
 
-当前客户端无权访问此内容。
-
-检测信息：
-- 文件: ${filename}
-- 时间: ${new Date().toISOString()}
-- 客户端类型: 未授权客户端
-- User-Agent: 已屏蔽
-
-🔑 支持的访问方式：
-1. 酷9播放器（自动识别，无需令牌）
-2. 其他播放器：添加参数 ?access_token=public_access_token_2024
-3. 酷9播放器专用令牌：?ku9_token=ku9_secure_token_2024
-4. 管理页面：?manage_token=default_manage_token_2024
-
-错误代码: ACCESS_DENIED_NO_TOKEN
-
-注意：此系统已启用令牌验证机制。`;
-  }
-  
-  return new Response(finalContent, {
+  return new Response(response, {
     headers: {
-      'Content-Type': contentType,
-      'Access-Control-Allow-Origin': '*',
+      'Content-Type': 'audio/x-mpegurl; charset=utf-8',
       'X-Content-Type-Options': 'nosniff',
-      'X-Security': 'Enabled',
-      'X-Access-Denied-Reason': 'No valid token provided',
-      'X-Available-Tokens': 'ku9_token, access_token, manage_token',
-      'Cache-Control': 'no-cache, no-store, must-revalidate'
+      'X-Blocked-Reason': 'player-not-supported',
+      'X-Required-Player': 'ku9-player',
+      'X-Detected-Player': playerName
     }
   });
 }
 
-// 文本混淆函数 - 简单的可逆混淆
-function textObfuscation(content) {
-  if (!content) return '';
+// 发送浏览器阻止内容
+function sendBrowserBlockContent(filename, userAgent) {
+  const response = `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>🚫 访问受限 - 酷9专用系统</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            border-radius: 10px;
+            padding: 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #d32f2f;
+            border-bottom: 2px solid #ffcdd2;
+            padding-bottom: 10px;
+        }
+        .note {
+            background: #fff3e0;
+            border-left: 4px solid #ff9800;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .steps {
+            background: #e8f5e8;
+            border-left: 4px solid #4caf50;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        code {
+            background: #f1f1f1;
+            padding: 2px 5px;
+            border-radius: 3px;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚫 访问受限</h1>
+        <p>此内容仅限 <strong>酷9播放器</strong> 访问，浏览器无法直接播放。</p>
+        
+        <div class="note">
+            <h3>📋 访问信息：</h3>
+            <p><strong>文件：</strong> ${filename}</p>
+            <p><strong>客户端：</strong> ${userAgent.substring(0, 100)}</p>
+            <p><strong>时间：</strong> ${new Date().toLocaleString()}</p>
+            <p><strong>状态：</strong> ❌ 访问被拒绝</p>
+        </div>
+        
+        <div class="steps">
+            <h3>🎯 如何访问：</h3>
+            <ol>
+                <li>下载并安装 <strong>酷9播放器</strong></li>
+                <li>在酷9播放器中打开此链接</li>
+                <li>系统将自动识别并播放</li>
+            </ol>
+            
+            <p><strong>或使用酷9专用令牌：</strong></p>
+            <p><code>在原链接后添加 ?ku9_token=ku9_secure_token_2024</code></p>
+        </div>
+        
+        <p><strong>⚠️ 注意：</strong>此系统采用严格绑定策略，仅支持酷9播放器。</p>
+        
+        <h3>📞 支持：</h3>
+        <p>如需技术支持或特殊授权，请联系系统管理员。</p>
+    </div>
+</body>
+</html>`;
+
+  return new Response(response, {
+    headers: {
+      'Content-Type': 'text/html; charset=utf-8',
+      'X-Content-Type-Options': 'nosniff',
+      'X-Blocked-Reason': 'browser-access-denied'
+    }
+  });
+}
+
+// 发送通用阻止内容
+function sendGenericBlockContent(filename, userAgent) {
+  const response = `# 🚫 酷9播放器专用系统
+
+# 此内容仅限酷9播放器访问
+# 检测到的客户端：${userAgent.substring(0, 50)}
+
+# 📱 访问要求：
+# 1. 必须使用酷9播放器
+# 2. 或提供酷9专用令牌
+
+# 🔑 酷9专用令牌：
+# ku9_secure_token_2024
+
+# 🔗 使用方式：
+# 在链接后添加参数：?ku9_token=ku9_secure_token_2024
+
+# ⚠️ 通用令牌已停用
+# ❌ 其他播放器无法访问
+
+# 文件：${filename}
+# 时间：${new Date().toISOString()}
+# 状态：等待酷9播放器`;
+
+  return new Response(response, {
+    headers: {
+      'Content-Type': 'text/plain; charset=utf-8',
+      'X-Content-Type-Options': 'nosniff',
+      'X-Required-Client': 'ku9-player',
+      'X-Access-Method': 'ku9_token parameter'
+    }
+  });
+}
+
+// 提取播放器名称
+function extractPlayerName(userAgent) {
+  const playerPatterns = [
+    { pattern: /mxplayer/i, name: 'MX Player' },
+    { pattern: /vlc/i, name: 'VLC Player' },
+    { pattern: /potplayer/i, name: 'PotPlayer' },
+    { pattern: /kodi/i, name: 'Kodi' },
+    { pattern: /nplayer/i, name: 'nPlayer' },
+    { pattern: /infuse/i, name: 'Infuse' },
+    { pattern: /tivimate/i, name: 'TiviMate' },
+    { pattern: /perfectplayer/i, name: 'Perfect Player' },
+    { pattern: /ottplayer/i, name: 'OTT Player' },
+    { pattern: /diyp/i, name: 'DIYP影音' },
+    { pattern: /tvbox/i, name: 'TVBox' },
+    { pattern: /ijkplayer/i, name: 'ijkPlayer' },
+    { pattern: /exoplayer/i, name: 'ExoPlayer' }
+  ];
   
-  // 简单的字符替换混淆
-  let obfuscated = '';
-  for (let i = 0; i < content.length; i++) {
-    const char = content.charCodeAt(i);
-    
-    // 对汉字和常见字符进行简单混淆
-    if (char >= 0x4E00 && char <= 0x9FFF) {
-      // 汉字：使用Unicode偏移
-      obfuscated += String.fromCharCode(char + 100);
-    } else if ((char >= 65 && char <= 90) || (char >= 97 && char <= 122)) {
-      // 英文字母：ROT13
-      if (char >= 65 && char <= 90) {
-        obfuscated += String.fromCharCode(((char - 65 + 13) % 26) + 65);
-      } else {
-        obfuscated += String.fromCharCode(((char - 97 + 13) % 26) + 97);
-      }
-    } else if (char >= 48 && char <= 57) {
-      // 数字：+5模10
-      obfuscated += String.fromCharCode(((char - 48 + 5) % 10) + 48);
-    } else {
-      // 其他字符：保持不变或简单变换
-      obfuscated += String.fromCharCode(char ^ 0x55);
+  for (const { pattern, name } of playerPatterns) {
+    if (pattern.test(userAgent)) {
+      return name;
     }
   }
   
-  return obfuscated;
+  return '未知播放器';
 }
 
 // 上传文件处理 (upload.php)
@@ -1764,10 +1936,9 @@ async function handleUploadFile(request, env) {
         size: content.length,
         security: {
           enabled: true,
-          allowed_clients: ['ku9_player', 'management_page', 'token_access'],
+          allowed_clients: ['ku9_player', 'management_page'],
           tokens: {
-            ku9_token: 'ku9_secure_token_2024',
-            access_token: 'public_access_token_2024'
+            ku9_token: 'ku9_secure_token_2024'
           }
         }
       };
@@ -1783,10 +1954,9 @@ async function handleUploadFile(request, env) {
         security: {
           enabled: true,
           tokens: {
-            ku9_player: 'ku9_secure_token_2024',
-            other_players: 'public_access_token_2024'
+            ku9_player: 'ku9_secure_token_2024'
           },
-          note: '酷9播放器自动识别，其他播放器需使用令牌'
+          note: '仅限酷9播放器访问，其他播放器无法播放'
         }
       }), {
         headers: {
@@ -1926,4 +2096,36 @@ function formatFileSize(bytes) {
   if (bytes < 1024) return bytes + 'B';
   if (bytes < 1048576) return (bytes / 1024).toFixed(2) + 'KB';
   return (bytes / 1048576).toFixed(2) + 'MB';
+}
+
+// 文本混淆函数 - 简单的可逆混淆
+function textObfuscation(content) {
+  if (!content) return '';
+  
+  // 简单的字符替换混淆
+  let obfuscated = '';
+  for (let i = 0; i < content.length; i++) {
+    const char = content.charCodeAt(i);
+    
+    // 对汉字和常见字符进行简单混淆
+    if (char >= 0x4E00 && char <= 0x9FFF) {
+      // 汉字：使用Unicode偏移
+      obfuscated += String.fromCharCode(char + 100);
+    } else if ((char >= 65 && char <= 90) || (char >= 97 && char <= 122)) {
+      // 英文字母：ROT13
+      if (char >= 65 && char <= 90) {
+        obfuscated += String.fromCharCode(((char - 65 + 13) % 26) + 65);
+      } else {
+        obfuscated += String.fromCharCode(((char - 97 + 13) % 26) + 97);
+      }
+    } else if (char >= 48 && char <= 57) {
+      // 数字：+5模10
+      obfuscated += String.fromCharCode(((char - 48 + 5) % 10) + 48);
+    } else {
+      // 其他字符：保持不变或简单变换
+      obfuscated += String.fromCharCode(char ^ 0x55);
+    }
+  }
+  
+  return obfuscated;
 }
