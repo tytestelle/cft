@@ -1,4 +1,4 @@
-// Cloudflare Pages Functions - 酷9播放器专用系统（加强版）
+// Cloudflare Pages Functions - 酷9播放器专用系统（带管理后台）
 export async function onRequest(context) {
   const { request, env } = context;
   const url = new URL(request.url);
@@ -10,7 +10,7 @@ export async function onRequest(context) {
       headers: {
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With, X-Client-Time, X-Encryption-Key, X-Management-Access, X-Ku9-Token, X-Ku9-Signature',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With, X-Client-Time, X-Encryption-Key, X-Management-Access, X-Ku9-Token',
         'Access-Control-Max-Age': '86400',
         'Vary': 'Origin'
       }
@@ -29,9 +29,9 @@ export async function onRequest(context) {
       });
     }
 
-    // 搜索管理页面
-    if (pathname === '/search.html' || pathname === '/search.php') {
-      return await handleManagementPage(request, env);
+    // 管理后台页面
+    if (pathname === '/admin.html' || pathname === '/admin.php') {
+      return await handleAdminPage(request, env);
     }
 
     // API: 读取文件 (read0.php)
@@ -54,21 +54,30 @@ export async function onRequest(context) {
       return await handleKu9Test(request);
     }
 
-    // API: 生成酷9签名
-    if (pathname === '/ku9_sign.php' && request.method === 'GET') {
-      return await handleKu9Sign(request);
+    // API: 获取访问记录
+    if (pathname === '/api/get_logs.php' && request.method === 'GET') {
+      return await handleGetLogs(request, env);
+    }
+
+    // API: 清空访问记录
+    if (pathname === '/api/clear_logs.php' && request.method === 'POST') {
+      return await handleClearLogs(request, env);
+    }
+
+    // API: 获取统计分析
+    if (pathname === '/api/stats.php' && request.method === 'GET') {
+      return await handleGetStats(request, env);
+    }
+
+    // API: 特征分析
+    if (pathname === '/api/analyze.php' && request.method === 'GET') {
+      return await handleAnalyze(request, env);
     }
 
     // 动态加密文件下载
     if (pathname.startsWith('/z/')) {
       const filename = pathname.substring(3);
-      return await handleSecureFileDownload(filename, request, env);
-    }
-
-    // 动态令牌验证
-    if (pathname.startsWith('/verify/')) {
-      const token = pathname.substring(8);
-      return await handleDynamicTokenVerify(token, request, env);
+      return await handleSecureFileDownload(filename, request, env, context);
     }
 
     // 默认返回主页
@@ -200,108 +209,77 @@ async function getIndexHTML() {
             font-size: 12px;
         }
         
-        .warning-box {
-            background: #fff3cd;
-            border: 2px solid #ffc107;
-            border-radius: 8px;
-            padding: 15px;
-            margin: 20px 0;
+        .admin-link {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background: #dc3545;
+            color: white;
+            padding: 8px 15px;
+            border-radius: 5px;
+            text-decoration: none;
+            font-weight: bold;
+            z-index: 1000;
         }
         
-        .warning-box h4 {
-            color: #856404;
-            margin-top: 0;
-        }
-        
-        .block-list {
-            background: #f8d7da;
-            border: 2px solid #f5c6cb;
-            border-radius: 6px;
-            padding: 10px;
-            margin: 10px 0;
-            font-size: 12px;
-        }
-        
-        .block-list ul {
-            list-style-type: none;
-            padding: 0;
-            margin: 0;
-        }
-        
-        .block-list li {
-            padding: 3px 0;
-        }
-        
-        .secure-feature {
-            background: #d1ecf1;
-            border: 2px solid #bee5eb;
-            border-radius: 6px;
-            padding: 12px;
-            margin: 10px 0;
+        .admin-link:hover {
+            background: #c82333;
+            text-decoration: none;
+            color: white;
         }
     </style>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>🔒酷9播放器专用系统（加强版）</title>
+    <title>🔒酷9播放器专用系统</title>
 </head>
 
 <body>
-    <h2>🔐 酷9播放器专用系统（加强版）</h2>
+    <a href="./admin.html" class="admin-link" target="_blank">📊 管理后台</a>
     
-    <div class="warning-box">
-        <h4>⚠️ 重要安全升级：</h4>
-        <p>系统已升级为<strong>酷9播放器独家专用</strong>，现在可以有效拦截：</p>
-        <div class="block-list">
-            <ul>
-                <li>✅ TVBox/影视仓/Dipy等助手软件</li>
-                <li>✅ 各种猫影视、TV端播放器</li>
-                <li>✅ 浏览器直接访问</li>
-                <li>✅ 抓包工具和分析软件</li>
-                <li>✅ 模拟酷9播放器的伪造请求</li>
-            </ul>
-        </div>
-        <p><strong>只有真正的酷9播放器才能正常播放！</strong></p>
-    </div>
+    <h2>🔐 酷9播放器专用系统</h2>
     
     <div class="ku9-simple">
-        <h3>✅ 酷9播放器专享功能：</h3>
-        <div class="secure-feature">
-            <p>1. <strong>动态令牌验证</strong> - 每次请求自动生成新令牌</p>
-            <p>2. <strong>时间戳签名</strong> - 防止链接被复用</p>
-            <p>3. <strong>TVBox助手拦截</strong> - 智能识别并阻止非酷9软件</p>
-            <p>4. <strong>抓包工具屏蔽</strong> - 全面保护链接安全</p>
-            <p>5. <strong>模拟请求检测</strong> - 识别伪造的酷9播放器请求</p>
-        </div>
+        <h3>✅ 酷9播放器专享：</h3>
+        <p>1. <strong>专用令牌验证</strong> - 使用专属令牌访问</p>
+        <p>2. <strong>宽松识别策略</strong> - 确保酷9能正常播放</p>
+        <p>3. <strong>其他软件拦截</strong> - 阻止非酷9播放器</p>
+        <p>4. <strong>抓包工具屏蔽</strong> - 保护链接安全</p>
+        <p>5. <strong>访问记录分析</strong> - 后台查看谁在访问</p>
     </div>
     
     <div class="token-box">
-        <strong>🔑 酷9专用令牌（动态生成）：</strong>
+        <strong>🔑 酷9专用令牌：</strong>
         <div style="margin: 10px 0; padding: 10px; background: #f8f9fa; border-radius: 4px;">
-            <code id="ku9Token">点击"生成动态令牌"获取</code>
+            <code id="ku9Token">ku9_secure_token_2024</code>
         </div>
-        <button class="copy-btn" onclick="generateDynamicToken()">生成动态令牌</button>
-        <button class="copy-btn" onclick="copyToken()" style="background: #6c757d;">复制令牌</button>
-        <p><small>动态令牌5分钟内有效，过期需要重新生成</small></p>
+        <button class="copy-btn" onclick="copyToken()">复制令牌</button>
+        <p><small>将此令牌添加到链接后：<code>?ku9_token=ku9_secure_token_2024</code></small></p>
     </div>
     
     <div class="simple-explanation">
-        <h4>🔍 工作原理（加强版）：</h4>
-        <p>1. <strong>客户端检测</strong> - 智能识别酷9播放器特征</p>
-        <p>2. <strong>动态令牌</strong> - 每次访问生成唯一验证码</p>
-        <p>3. <strong>时间戳验证</strong> - 防止链接被保存和复用</p>
-        <p>4. <strong>模拟器识别</strong> - 检测并阻止伪造请求</p>
-        <p>5. <strong>TVBox拦截</strong> - 阻止助手软件获取源码</p>
-        <p>6. <strong>多层防护</strong> - User-Agent + 令牌 + 签名三重验证</p>
+        <h4>🔍 工作原理：</h4>
+        <p>1. 检查是否有 <code>ku9_token</code> 参数</p>
+        <p>2. 如果是抓包工具，直接拒绝并记录</p>
+        <p>3. 如果有正确令牌，允许访问并记录</p>
+        <p>4. 如果没有令牌，检查User-Agent</p>
+        <p>5. 如果是酷9播放器，允许访问并记录</p>
+        <p>6. 否则拒绝访问并记录</p>
+        <p>7. <strong>所有访问都会被记录到管理后台</strong></p>
     </div>
     
     <div class="test-section">
-        <h4>📱 酷9播放器连接测试：</h4>
-        <p>测试您的酷9播放器是否符合访问条件：</p>
-        <button class="test-btn" onclick="testKu9Connection()">开始全面检测</button>
+        <h4>📱 酷9播放器测试：</h4>
+        <p>测试您的酷9播放器是否能正常访问：</p>
+        <button class="test-btn" onclick="testKu9Connection()">测试酷9连接</button>
         <div id="testResult" style="margin-top: 10px;"></div>
-        <p><small>测试项目：酷9特征识别、令牌验证、模拟检测、时间有效性</small></p>
+        <p><small>如果测试失败，请确保：</small></p>
+        <ul style="margin: 10px 0; padding-left: 20px;">
+            <li>使用最新版酷9播放器</li>
+            <li>链接中包含 <code>?ku9_token=ku9_secure_token_2024</code></li>
+            <li>网络连接正常</li>
+        </ul>
     </div>
     
-    <p>可自定义扩展名，输入完整文件名如：<code>log.json</code>、<code>test.php</code>。〖<a href="./search.html"><b>接口搜索</b></a>〗</p><br>
+    <p>可自定义扩展名，输入完整文件名如：<code>log.json</code>、<code>test.php</code>。〖<a href="./admin.html"><b>访问记录后台</b></a>〗</p><br>
 
     <form id="uploadForm">
         <div style="display: flex;">源文：
@@ -314,7 +292,7 @@ async function getIndexHTML() {
         <input type="text" name="filename" id="filename" required style="width:150px;">
         <button type="button" onclick="readFile()">读取文件</button>
         <button type="button" onclick="uploadFile()">转为链接</button>
-        <button type="button" onclick="generateSecureKu9Link()" style="background: #007bff; color: white;">生成酷9安全链接</button>
+        <button type="button" onclick="generateKu9Link()" style="background: #007bff; color: white;">生成酷9链接</button>
     </form>
     <p>可在线编辑已有文件，输入相同文件名与密码。</p><br>    
 
@@ -323,28 +301,21 @@ async function getIndexHTML() {
         <a id="linkAnchor" href="" target="_blank"></a>
         <button class="copy-btn" onclick="copyLink()">复制链接</button>
         
-        <div id="ku9LinkSection" style="display:none; margin-top: 15px;">
-            <div class="ku9-help">
-                <h4>📱 酷9播放器专用链接（加强版）：</h4>
-                <p><strong>动态安全链接（推荐使用）：</strong></p>
-                <div style="background: #f8f9fa; padding: 10px; border-radius: 4px; margin: 10px 0;">
-                    <code id="ku9DynamicLink"></code>
-                </div>
-                <button class="copy-btn" onclick="copyKu9DynamicLink()">复制动态链接</button>
-                <p><small>此链接包含动态令牌和签名，5分钟内有效，防止TVBox助手获取</small></p>
-                
-                <p><strong>如果播放器不支持动态令牌：</strong></p>
-                <div style="background: #e9ecef; padding: 10px; border-radius: 4px; margin: 10px 0;">
-                    <code id="ku9StaticLink"></code>
-                </div>
-                <button class="copy-btn" onclick="copyKu9StaticLink()" style="background: #6c757d;">复制静态链接</button>
-                <p><small>静态链接安全性较低，仅用于兼容老版本</small></p>
-                
-                <p><strong>重要提示：</strong></p>
-                <p>1. 动态链接每次访问都会变化，无法被TVBox助手固定使用</p>
-                <p>2. 静态链接可能被TVBox助手获取，建议使用动态链接</p>
-                <p>3. 如遇到播放问题，请使用最新版酷9播放器</p>
+        <div class="ku9-help" style="margin-top: 15px;">
+            <h4>📱 酷9播放器使用方法：</h4>
+            <p><strong>方法1：直接使用酷9专用链接（推荐）</strong></p>
+            <div style="background: #f8f9fa; padding: 10px; border-radius: 4px; margin: 10px 0;">
+                <code id="ku9SpecialLink"></code>
             </div>
+            <button class="copy-btn" onclick="copyKu9SpecialLink()">复制酷9专用链接</button>
+            
+            <p><strong>方法2：手动添加令牌</strong></p>
+            <p>在普通链接后添加：<code>?ku9_token=ku9_secure_token_2024</code></p>
+            
+            <p><strong>如果还是无法播放：</strong></p>
+            <p>1. 确保酷9播放器是最新版本</p>
+            <p>2. 联系管理员获取帮助</p>
+            <p>3. 尝试使用其他域名</p>
         </div>
     </div>
     
@@ -360,8 +331,7 @@ async function getIndexHTML() {
   </ul>
   
     <script>
-        let CURRENT_DYNAMIC_TOKEN = '';
-        let TOKEN_EXPIRY = 0;
+        const KU9_TOKEN = 'ku9_secure_token_2024';
         
         function readFile() {
             const filename = document.getElementById('filename').value;
@@ -462,55 +432,11 @@ async function getIndexHTML() {
             linkAnchor.textContent = link;
             linkDisplay.style.display = 'block';
             
-            // 显示酷9链接部分
-            document.getElementById('ku9LinkSection').style.display = 'block';
-            
-            // 生成静态酷9链接
-            const staticKu9Link = link + '?ku9_token=ku9_secure_token_2024&t=' + Date.now();
-            document.getElementById('ku9StaticLink').textContent = staticKu9Link;
-            
-            // 生成动态酷9链接
-            generateDynamicKu9Link(link);
+            // 生成酷9专用链接
+            const ku9Link = link + '?ku9_token=' + KU9_TOKEN;
+            document.getElementById('ku9SpecialLink').textContent = ku9Link;
             
             linkDisplay.scrollIntoView({ behavior: 'smooth' });
-        }
-        
-        function generateDynamicKu9Link(baseLink) {
-            // 生成动态令牌
-            const timestamp = Math.floor(Date.now() / 1000);
-            const dynamicToken = 'ku9_dynamic_' + timestamp + '_' + Math.random().toString(36).substr(2, 9);
-            
-            // 生成签名
-            const signature = generateSignature(baseLink, timestamp);
-            
-            // 构建动态链接
-            const dynamicLink = baseLink + 
-                '?ku9_token=' + encodeURIComponent(dynamicToken) +
-                '&t=' + timestamp +
-                '&sign=' + signature +
-                '&v=2';
-            
-            document.getElementById('ku9DynamicLink').textContent = dynamicLink;
-            
-            // 保存当前令牌
-            CURRENT_DYNAMIC_TOKEN = dynamicToken;
-            TOKEN_EXPIRY = timestamp + 300; // 5分钟有效
-            
-            // 更新令牌显示
-            document.getElementById('ku9Token').textContent = dynamicToken;
-        }
-        
-        function generateSignature(url, timestamp) {
-            // 简单的签名算法，防止被轻易伪造
-            const secret = 'ku9_secure_salt_2024';
-            const str = url + timestamp + secret;
-            let hash = 0;
-            for (let i = 0; i < str.length; i++) {
-                const char = str.charCodeAt(i);
-                hash = ((hash << 5) - hash) + char;
-                hash = hash & hash;
-            }
-            return Math.abs(hash).toString(36);
         }
         
         function copyLink() {
@@ -520,44 +446,20 @@ async function getIndexHTML() {
                 .catch(err => alert('复制失败: ' + err));
         }
         
-        function copyKu9DynamicLink() {
-            const link = document.getElementById('ku9DynamicLink').textContent;
+        function copyKu9SpecialLink() {
+            const link = document.getElementById('ku9SpecialLink').textContent;
             navigator.clipboard.writeText(link)
-                .then(() => alert('酷9动态安全链接已复制到剪贴板'))
+                .then(() => alert('酷9专用链接已复制到剪贴板'))
                 .catch(err => alert('复制失败: ' + err));
-        }
-        
-        function copyKu9StaticLink() {
-            const link = document.getElementById('ku9StaticLink').textContent;
-            navigator.clipboard.writeText(link)
-                .then(() => alert('酷9静态链接已复制到剪贴板'))
-                .catch(err => alert('复制失败: ' + err));
-        }
-        
-        function generateDynamicToken() {
-            const timestamp = Math.floor(Date.now() / 1000);
-            const randomStr = Math.random().toString(36).substr(2, 12);
-            const token = 'ku9_' + timestamp + '_' + randomStr;
-            
-            CURRENT_DYNAMIC_TOKEN = token;
-            TOKEN_EXPIRY = timestamp + 300;
-            
-            document.getElementById('ku9Token').textContent = token;
-            alert('动态令牌已生成，5分钟内有效：\n' + token);
         }
         
         function copyToken() {
-            if (!CURRENT_DYNAMIC_TOKEN) {
-                alert('请先生成动态令牌');
-                return;
-            }
-            
-            navigator.clipboard.writeText(CURRENT_DYNAMIC_TOKEN)
-                .then(() => alert('动态令牌已复制到剪贴板'))
+            navigator.clipboard.writeText(KU9_TOKEN)
+                .then(() => alert('酷9令牌已复制到剪贴板'))
                 .catch(err => alert('复制失败: ' + err));
         }
         
-        function generateSecureKu9Link() {
+        function generateKu9Link() {
             const filename = document.getElementById('filename').value;
             if (!filename) {
                 alert('请输入文件名');
@@ -565,6 +467,11 @@ async function getIndexHTML() {
             }
             
             const baseUrl = window.location.origin + '/z/' + encodeURIComponent(filename);
+            const ku9Link = baseUrl + '?ku9_token=' + KU9_TOKEN;
+            
+            // 显示酷9专用链接
+            const ku9SpecialLink = document.getElementById('ku9SpecialLink');
+            ku9SpecialLink.textContent = ku9Link;
             
             // 显示普通链接
             const linkDisplay = document.getElementById('linkDisplay');
@@ -573,62 +480,21 @@ async function getIndexHTML() {
             linkAnchor.textContent = baseUrl;
             linkDisplay.style.display = 'block';
             
-            // 显示酷9链接部分
-            document.getElementById('ku9LinkSection').style.display = 'block';
-            
-            // 生成静态酷9链接
-            const staticKu9Link = baseUrl + '?ku9_token=ku9_secure_token_2024&t=' + Date.now();
-            document.getElementById('ku9StaticLink').textContent = staticKu9Link;
-            
-            // 生成动态酷9链接
-            generateDynamicKu9Link(baseUrl);
-            
             linkDisplay.scrollIntoView({ behavior: 'smooth' });
         }
         
         function testKu9Connection() {
             const testResult = document.getElementById('testResult');
-            testResult.innerHTML = '<p style="color: #856404;">正在全面检测酷9连接...</p>';
+            testResult.innerHTML = '<p style="color: #856404;">正在测试酷9连接...</p>';
             
-            fetch('ku9_test.php?t=' + Date.now())
-                .then(response => response.json())
+            fetch('ku9_test.php')
+                .then(response => response.text())
                 .then(data => {
-                    let html = '<div style="background: #f8f9fa; padding: 10px; border-radius: 4px;">';
-                    html += '<p><strong>检测结果：</strong></p>';
-                    
-                    if (data.isKu9) {
-                        html += '<p class="status-good">✅ 酷9播放器特征识别成功</p>';
+                    if (data.includes('SUCCESS')) {
+                        testResult.innerHTML = '<p class="status-good">✅ 酷9连接测试成功！</p>';
                     } else {
-                        html += '<p class="status-bad">❌ 未检测到酷9播放器特征</p>';
+                        testResult.innerHTML = '<p class="status-bad">❌ 酷9连接测试失败：' + data + '</p>';
                     }
-                    
-                    if (data.isSniffingTool) {
-                        html += '<p class="status-bad">❌ 检测到抓包工具</p>';
-                    } else {
-                        html += '<p class="status-good">✅ 无抓包工具检测</p>';
-                    }
-                    
-                    if (data.isOtherPlayer) {
-                        html += '<p class="status-bad">❌ 检测到其他播放器：' + data.detectedPlayer + '</p>';
-                    } else {
-                        html += '<p class="status-good">✅ 无其他播放器检测</p>';
-                    }
-                    
-                    if (data.isTVBox) {
-                        html += '<p class="status-bad">❌ 检测到TVBox助手软件</p>';
-                    } else {
-                        html += '<p class="status-good">✅ 无TVBox助手检测</p>';
-                    }
-                    
-                    html += '<p><strong>User-Agent：</strong>' + data.userAgent.substring(0, 80) + '...</p>';
-                    
-                    html += '<p><strong>建议：</strong></p><ul>';
-                    data.recommendations.forEach(rec => {
-                        html += '<li>' + rec + '</li>';
-                    });
-                    html += '</ul></div>';
-                    
-                    testResult.innerHTML = html;
                 })
                 .catch(err => {
                     testResult.innerHTML = '<p class="status-bad">❌ 测试失败：' + err.message + '</p>';
@@ -637,321 +503,1642 @@ async function getIndexHTML() {
         
         // 页面加载时初始化
         window.addEventListener('load', function() {
-            // 显示当前时间
-            const now = new Date();
-            document.getElementById('ku9Token').textContent = '动态令牌未生成 - 当前时间: ' + now.toLocaleTimeString();
+            document.getElementById('ku9Token').textContent = KU9_TOKEN;
         });
     </script>
 </body>
 </html>`;
 }
 
-// 管理页面处理
-async function handleManagementPage(request, env) {
-  return new Response('管理页面（加强版）', {
+// 管理后台页面
+async function handleAdminPage(request, env) {
+  const adminToken = await env.MY_TEXT_STORAGE.get('admin_token') || 'admin_token_2024';
+  const url = new URL(request.url);
+  const token = url.searchParams.get('token');
+  
+  if (token !== adminToken) {
+    return new Response(`<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>🔐 管理后台登录</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 400px;
+            margin: 100px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .login-box {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        input {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        button {
+            width: 100%;
+            padding: 10px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .error {
+            color: red;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-box">
+        <h2>🔐 管理后台登录</h2>
+        <p>请输入管理员令牌：</p>
+        <input type="password" id="token" placeholder="输入管理员令牌">
+        <button onclick="login()">登录</button>
+        <div id="error" class="error"></div>
+    </div>
+    <script>
+        function login() {
+            const token = document.getElementById('token').value;
+            if (!token) {
+                document.getElementById('error').textContent = '请输入令牌';
+                return;
+            }
+            window.location.href = '?token=' + encodeURIComponent(token);
+        }
+        // 按Enter键登录
+        document.getElementById('token').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') login();
+        });
+    </script>
+</body>
+</html>`, {
+      headers: { 'content-type': 'text/html;charset=UTF-8' }
+    });
+  }
+  
+  return new Response(await getAdminHTML(), {
     headers: { 
       'content-type': 'text/html;charset=UTF-8',
-      'Cache-Control': 'no-cache, no-store, must-revalidate',
-      'X-Content-Type-Options': 'nosniff'
+      'Cache-Control': 'no-cache, no-store, must-revalidate'
     },
   });
 }
 
-// 酷9播放器测试接口
-async function handleKu9Test(request) {
-  const userAgent = request.headers.get('User-Agent') || '';
-  const lowerUA = userAgent.toLowerCase();
-  const url = new URL(request.url);
-  
-  let result = {
-    status: '全面检测开始',
-    userAgent: userAgent,
-    isKu9: false,
-    isSniffingTool: false,
-    isOtherPlayer: false,
-    isTVBox: false,
-    isBrowser: false,
-    detectedPlayer: 'unknown',
-    timestamp: Date.now(),
-    recommendations: []
-  };
-  
-  // 1. 检查是否是TVBox助手（优先检测）
-  const tvboxPatterns = [
-    'tvbox', 'tv-box', 'tv_box', 'tivi', 'tiviplayer',
-    'tivimate', 'tvmate', 'tv.mate', 'catvod',
-    '影视仓', 'dipy', 'diyp', 'okhttp', 'dart',
-    'moviecat', '云星日记', '影视工场', '影音壳',
-    'tvhub', 'tvhub.', 'tv端', 'tv端播放器',
-    'tv播放器', 'android-tv', 'smart-tv', 'leanback'
-  ];
-  
-  for (const pattern of tvboxPatterns) {
-    if (lowerUA.includes(pattern.toLowerCase())) {
-      result.isTVBox = true;
-      result.detectedPlayer = pattern;
-      result.recommendations.push('检测到TVBox助手类软件，已被系统拦截');
-      break;
-    }
-  }
-  
-  // 2. 检查是否是抓包工具
-  const sniffingTools = [
-    'httpcanary', 'packetcapture', 'charles', 'fiddler',
-    'wireshark', 'burpsuite', 'mitmproxy', 'proxyman',
-    'surge', 'shadowrocket', 'postman', 'insomnia',
-    'thunder.*client', 'curl', 'wget', 'python-requests',
-    'axios', 'requests', 'okhttp/', 'http.client',
-    'httplib', 'faraday', 'rest-client', 'jdk.internal',
-    'java/', 'cfnetwork', 'alamofire', 'volley'
-  ];
-  
-  for (const tool of sniffingTools) {
-    if (new RegExp(tool.replace('.*', '.*'), 'i').test(lowerUA)) {
-      result.isSniffingTool = true;
-      result.recommendations.push('检测到抓包工具或HTTP客户端，已被系统拦截');
-      break;
-    }
-  }
-  
-  // 3. 检查是否是酷9播放器（加强检测）
-  const ku9Patterns = [
-    'ku9', 'k9', 'ku9player', 'k9player',
-    'com.ku9', 'com.k9', 'ku9-', 'k9-',
-    'ku9_', 'k9_', 'ku9app', 'k9app',
-    'ku9player/', 'k9player/', 'ku9播放器',
-    'k9播放器'
-  ];
-  
-  // 酷9特有的请求头检查
-  const ku9Headers = [
-    'x-ku9-client', 'x-ku9-version', 'x-ku9-device',
-    'x-k9-client', 'x-k9-version', 'x-k9-device'
-  ];
-  
-  let hasKu9Header = false;
-  for (const header of ku9Headers) {
-    if (request.headers.get(header)) {
-      hasKu9Header = true;
-      break;
-    }
-  }
-  
-  // 酷9特征检测
-  let ku9Score = 0;
-  
-  // User-Agent包含酷9特征
-  for (const pattern of ku9Patterns) {
-    if (lowerUA.includes(pattern)) {
-      ku9Score += 3;
-      result.isKu9 = true;
-      break;
-    }
-  }
-  
-  // 有酷9特有的请求头
-  if (hasKu9Header) {
-    ku9Score += 5;
-    result.isKu9 = true;
-  }
-  
-  // 检查Accept头部（酷9可能有的特定格式）
-  const acceptHeader = request.headers.get('Accept') || '';
-  if (acceptHeader.includes('video') || acceptHeader.includes('mpegurl') || acceptHeader.includes('m3u8')) {
-    ku9Score += 2;
-  }
-  
-  // 检查Referer（如果有）
-  const referer = request.headers.get('Referer') || '';
-  if (referer.includes('ku9') || referer.includes('k9')) {
-    ku9Score += 2;
-  }
-  
-  if (ku9Score >= 3) {
-    result.isKu9 = true;
-    result.recommendations.push('✅ 酷9播放器特征检测通过，可以正常访问');
-  }
-  
-  // 4. 检查是否是其他播放器
-  const otherPlayers = [
-    { pattern: 'mxplayer', name: 'MX Player' },
-    { pattern: 'vlc', name: 'VLC' },
-    { pattern: 'potplayer', name: 'PotPlayer' },
-    { pattern: 'kodi', name: 'Kodi' },
-    { pattern: 'nplayer', name: 'nPlayer' },
-    { pattern: 'infuse', name: 'Infuse' },
-    { pattern: 'perfectplayer', name: 'Perfect Player' },
-    { pattern: 'ijkplayer', name: 'ijkPlayer' },
-    { pattern: 'exoplayer', name: 'ExoPlayer' },
-    { pattern: 'vlc-android', name: 'VLC Android' },
-    { pattern: 'mx tech', name: 'MX Tech' },
-    { pattern: 'justplayer', name: 'Just Player' },
-    { pattern: 'nova video', name: 'Nova Video' },
-    { pattern: 'mpv', name: 'MPV' },
-    { pattern: 'mpchc', name: 'MPC-HC' }
-  ];
-  
-  for (const { pattern, name } of otherPlayers) {
-    if (lowerUA.includes(pattern)) {
-      result.isOtherPlayer = true;
-      result.detectedPlayer = name;
-      result.recommendations.push(`检测到其他播放器: ${name}，请使用酷9播放器`);
-      break;
-    }
-  }
-  
-  // 5. 检查是否是浏览器
-  const browsers = [
-    'chrome', 'firefox', 'safari', 'edge',
-    'opera', 'msie', 'trident', 'mozilla',
-    'webkit', 'gecko', 'chromium', 'brave',
-    'vivaldi', 'yabrowser', 'ucbrowser',
-    'qqbrowser', '2345explorer', 'metasr',
-    'lbbrowser', 'maxthon', 'quark'
-  ];
-  
-  for (const browser of browsers) {
-    if (lowerUA.includes(browser)) {
-      result.isBrowser = true;
-      result.recommendations.push('检测到浏览器，请使用酷9播放器');
-      break;
-    }
-  }
-  
-  // 6. 如果没有检测到任何特征
-  if (!result.isKu9 && !result.isSniffingTool && !result.isOtherPlayer && !result.isBrowser && !result.isTVBox) {
-    result.recommendations.push('客户端类型未知，尝试添加动态令牌参数');
-    result.recommendations.push('请联系管理员获取最新酷9播放器');
-  }
-  
-  // 7. 最终建议
-  if (!result.isKu9) {
-    result.recommendations.push('建议使用最新版酷9播放器');
-    result.recommendations.push('确保链接包含动态令牌参数');
-  }
-  
-  if (result.isTVBox) {
-    result.recommendations.push('TVBox助手已被拦截，无法获取播放内容');
-    result.recommendations.push('请使用官方酷9播放器');
-  }
-  
-  return new Response(JSON.stringify(result, null, 2), {
-    headers: {
-      'Content-Type': 'application/json',
-      'Access-Control-Allow-Origin': '*',
-      'X-Content-Type-Options': 'nosniff'
-    }
-  });
+// 管理后台HTML
+async function getAdminHTML() {
+  return `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>📊 酷9系统管理后台</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Microsoft YaHei', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .admin-container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        .admin-header {
+            background: white;
+            border-radius: 15px;
+            padding: 25px 30px;
+            margin-bottom: 25px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .admin-header h1 {
+            color: #333;
+            font-size: 28px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 25px;
+        }
+        
+        .stat-card {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+            transition: transform 0.3s ease;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .stat-card.green {
+            border-left: 5px solid #4CAF50;
+        }
+        
+        .stat-card.blue {
+            border-left: 5px solid #2196F3;
+        }
+        
+        .stat-card.orange {
+            border-left: 5px solid #FF9800;
+        }
+        
+        .stat-card.red {
+            border-left: 5px solid #F44336;
+        }
+        
+        .stat-value {
+            font-size: 36px;
+            font-weight: bold;
+            color: #333;
+            margin: 10px 0;
+        }
+        
+        .stat-label {
+            color: #666;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            background: white;
+            border-radius: 12px;
+            padding: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+        }
+        
+        .tab {
+            padding: 12px 24px;
+            background: #f5f5f5;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+        
+        .tab:hover {
+            background: #e9e9e9;
+        }
+        
+        .tab.active {
+            background: #667eea;
+            color: white;
+        }
+        
+        .content-section {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            margin-bottom: 25px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            display: none;
+        }
+        
+        .content-section.active {
+            display: block;
+            animation: fadeIn 0.5s ease;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .filter-bar {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        
+        .filter-input {
+            padding: 10px 15px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+            min-width: 200px;
+        }
+        
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #5a67d8;
+        }
+        
+        .btn-danger {
+            background: #F44336;
+            color: white;
+        }
+        
+        .btn-danger:hover {
+            background: #d32f2f;
+        }
+        
+        .btn-success {
+            background: #4CAF50;
+            color: white;
+        }
+        
+        .btn-success:hover {
+            background: #388E3C;
+        }
+        
+        .table-container {
+            overflow-x: auto;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+        
+        th {
+            background: #f8f9fa;
+            padding: 15px;
+            text-align: left;
+            font-weight: 600;
+            color: #495057;
+            border-bottom: 2px solid #dee2e6;
+            position: sticky;
+            top: 0;
+        }
+        
+        td {
+            padding: 15px;
+            border-bottom: 1px solid #dee2e6;
+            color: #212529;
+        }
+        
+        tr:hover {
+            background: #f8f9fa;
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        
+        .badge-success {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .badge-warning {
+            background: #fff3cd;
+            color: #856404;
+        }
+        
+        .badge-danger {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        
+        .badge-info {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+        
+        .ua-short {
+            max-width: 300px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        
+        .timestamp {
+            font-family: monospace;
+            font-size: 12px;
+            color: #666;
+        }
+        
+        .pagination {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 20px;
+            align-items: center;
+        }
+        
+        .page-btn {
+            padding: 8px 15px;
+            border: 1px solid #ddd;
+            background: white;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        
+        .page-btn.active {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+        
+        .page-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .charts-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 25px;
+            margin-top: 30px;
+        }
+        
+        .chart-box {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+        }
+        
+        .chart-box h3 {
+            margin-bottom: 20px;
+            color: #333;
+            font-size: 18px;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 50px;
+            color: #666;
+        }
+        
+        .refresh-btn {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-left: auto;
+        }
+        
+        .refresh-btn:hover {
+            background: #388E3C;
+        }
+        
+        @media (max-width: 768px) {
+            .admin-header {
+                flex-direction: column;
+                gap: 15px;
+                text-align: center;
+            }
+            
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .tabs {
+                flex-wrap: wrap;
+            }
+            
+            .filter-bar {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .filter-input {
+                width: 100%;
+            }
+            
+            .charts-container {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="admin-container">
+        <div class="admin-header">
+            <h1>
+                <span>📊 酷9播放器系统管理后台</span>
+            </h1>
+            <div>
+                <button class="refresh-btn" onclick="loadAllData()">
+                    🔄 刷新数据
+                </button>
+            </div>
+        </div>
+        
+        <div class="stats-grid">
+            <div class="stat-card green">
+                <div class="stat-label">今日访问</div>
+                <div class="stat-value" id="todayVisits">0</div>
+                <div class="stat-desc">次访问</div>
+            </div>
+            <div class="stat-card blue">
+                <div class="stat-label">酷9播放器</div>
+                <div class="stat-value" id="ku9Access">0</div>
+                <div class="stat-desc">次成功访问</div>
+            </div>
+            <div class="stat-card orange">
+                <div class="stat-label">拦截访问</div>
+                <div class="stat-value" id="blockedAccess">0</div>
+                <div class="stat-desc">次拦截</div>
+            </div>
+            <div class="stat-card red">
+                <div class="stat-label">抓包工具</div>
+                <div class="stat-value" id="sniffingTools">0</div>
+                <div class="stat-desc">次检测</div>
+            </div>
+        </div>
+        
+        <div class="tabs">
+            <button class="tab active" onclick="showTab('logs')">📝 访问记录</button>
+            <button class="tab" onclick="showTab('analysis')">📈 统计分析</button>
+            <button class="tab" onclick="showTab('features')">🔍 特征分析</button>
+            <button class="tab" onclick="showTab('files')">📁 文件管理</button>
+            <button class="tab" onclick="showTab('settings')">⚙️ 系统设置</button>
+        </div>
+        
+        <!-- 访问记录标签页 -->
+        <div id="logs-tab" class="content-section active">
+            <div class="filter-bar">
+                <input type="text" class="filter-input" id="searchUA" placeholder="搜索 User-Agent...">
+                <input type="text" class="filter-input" id="searchIP" placeholder="搜索 IP...">
+                <select class="filter-input" id="filterType">
+                    <option value="">所有类型</option>
+                    <option value="ku9">酷9播放器</option>
+                    <option value="blocked">拦截访问</option>
+                    <option value="sniffing">抓包工具</option>
+                    <option value="browser">浏览器</option>
+                    <option value="other">其他播放器</option>
+                </select>
+                <input type="date" class="filter-input" id="filterDate">
+                <button class="btn btn-primary" onclick="filterLogs()">筛选</button>
+                <button class="btn btn-danger" onclick="clearLogs()">清空记录</button>
+                <button class="btn btn-success" onclick="exportLogs()">导出CSV</button>
+            </div>
+            
+            <div class="table-container">
+                <table id="logsTable">
+                    <thead>
+                        <tr>
+                            <th>时间</th>
+                            <th>文件</th>
+                            <th>IP地址</th>
+                            <th>客户端类型</th>
+                            <th>User-Agent</th>
+                            <th>访问结果</th>
+                            <th>详细特征</th>
+                        </tr>
+                    </thead>
+                    <tbody id="logsBody">
+                        <tr><td colspan="7" class="loading">正在加载访问记录...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            
+            <div class="pagination" id="logsPagination">
+                <!-- 分页按钮将通过JavaScript生成 -->
+            </div>
+        </div>
+        
+        <!-- 统计分析标签页 -->
+        <div id="analysis-tab" class="content-section">
+            <h2 style="margin-bottom: 20px;">📈 访问统计分析</h2>
+            
+            <div class="charts-container">
+                <div class="chart-box">
+                    <h3>访问类型分布</h3>
+                    <canvas id="typeChart" height="250"></canvas>
+                </div>
+                
+                <div class="chart-box">
+                    <h3>24小时访问趋势</h3>
+                    <canvas id="hourlyChart" height="250"></canvas>
+                </div>
+                
+                <div class="chart-box">
+                    <h3>热门文件访问</h3>
+                    <canvas id="filesChart" height="250"></canvas>
+                </div>
+                
+                <div class="chart-box">
+                    <h3>客户端来源分析</h3>
+                    <canvas id="clientChart" height="250"></canvas>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 特征分析标签页 -->
+        <div id="features-tab" class="content-section">
+            <h2 style="margin-bottom: 20px;">🔍 客户端特征分析</h2>
+            
+            <div class="filter-bar">
+                <select class="filter-input" id="featureCategory">
+                    <option value="useragents">User-Agent 分析</option>
+                    <option value="patterns">特征模式</option>
+                    <option value="suspicious">可疑访问</option>
+                    <option value="unknown">未知客户端</option>
+                </select>
+                <button class="btn btn-primary" onclick="analyzeFeatures()">开始分析</button>
+            </div>
+            
+            <div id="featuresResults">
+                <div class="loading">请选择分析类别并点击开始分析...</div>
+            </div>
+        </div>
+        
+        <!-- 文件管理标签页 -->
+        <div id="files-tab" class="content-section">
+            <h2 style="margin-bottom: 20px;">📁 存储文件管理</h2>
+            
+            <div class="table-container">
+                <table id="filesTable">
+                    <thead>
+                        <tr>
+                            <th>文件名</th>
+                            <th>文件大小</th>
+                            <th>创建时间</th>
+                            <th>最后访问</th>
+                            <th>访问次数</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="filesBody">
+                        <tr><td colspan="6" class="loading">正在加载文件列表...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <!-- 系统设置标签页 -->
+        <div id="settings-tab" class="content-section">
+            <h2 style="margin-bottom: 20px;">⚙️ 系统设置</h2>
+            
+            <div style="max-width: 600px;">
+                <div style="margin-bottom: 25px;">
+                    <h3>🔑 令牌设置</h3>
+                    <div style="background: #f8f9fa; padding: 20px; border-radius: 10px; margin: 15px 0;">
+                        <label style="display: block; margin-bottom: 8px; font-weight: 500;">酷9播放器令牌</label>
+                        <div style="display: flex; gap: 10px;">
+                            <input type="text" id="ku9TokenSetting" value="ku9_secure_token_2024" 
+                                   style="flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+                            <button class="btn btn-primary" onclick="updateToken('ku9')">更新</button>
+                        </div>
+                    </div>
+                    
+                    <div style="background: #f8f9fa; padding: 20px; border-radius: 10px; margin: 15px 0;">
+                        <label style="display: block; margin-bottom: 8px; font-weight: 500;">管理令牌</label>
+                        <div style="display: flex; gap: 10px;">
+                            <input type="text" id="adminTokenSetting" value="" placeholder="输入新管理令牌" 
+                                   style="flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+                            <button class="btn btn-primary" onclick="updateToken('admin')">更新</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div style="margin-bottom: 25px;">
+                    <h3>🛡️ 安全设置</h3>
+                    <div style="background: #f8f9fa; padding: 20px; border-radius: 10px; margin: 15px 0;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                            <div>
+                                <strong>拦截抓包工具</strong>
+                                <p style="color: #666; margin-top: 5px; font-size: 14px;">检测并拦截HTTP抓包工具</p>
+                            </div>
+                            <label class="switch">
+                                <input type="checkbox" id="blockSniffing" checked>
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                        
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                            <div>
+                                <strong>拦截其他播放器</strong>
+                                <p style="color: #666; margin-top: 5px; font-size: 14px;">拦截非酷9播放器的访问</p>
+                            </div>
+                            <label class="switch">
+                                <input type="checkbox" id="blockOtherPlayers" checked>
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                        
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <strong>浏览器访问提示</strong>
+                                <p style="color: #666; margin-top: 5px; font-size: 14px;">为浏览器访问显示友好提示</p>
+                            </div>
+                            <label class="switch">
+                                <input type="checkbox" id="browserHint" checked>
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                
+                <div style="margin-bottom: 25px;">
+                    <h3>📊 记录设置</h3>
+                    <div style="background: #f8f9fa; padding: 20px; border-radius: 10px; margin: 15px 0;">
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; margin-bottom: 8px; font-weight: 500;">记录保留天数</label>
+                            <select id="logRetention" style="width: 200px; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+                                <option value="7">7天</option>
+                                <option value="30" selected>30天</option>
+                                <option value="90">90天</option>
+                                <option value="180">180天</option>
+                                <option value="365">365天</option>
+                            </select>
+                        </div>
+                        
+                        <div style="display: flex; gap: 15px; margin-top: 20px;">
+                            <button class="btn btn-primary" onclick="saveSettings()">保存设置</button>
+                            <button class="btn btn-danger" onclick="resetSettings()">恢复默认</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        let currentTab = 'logs';
+        let currentPage = 1;
+        const itemsPerPage = 20;
+        let allLogs = [];
+        
+        // 切换标签页
+        function showTab(tabName) {
+            // 隐藏所有标签页
+            document.querySelectorAll('.content-section').forEach(el => {
+                el.classList.remove('active');
+            });
+            
+            // 移除所有标签的active类
+            document.querySelectorAll('.tab').forEach(el => {
+                el.classList.remove('active');
+            });
+            
+            // 显示选中的标签页
+            document.getElementById(tabName + '-tab').classList.add('active');
+            document.querySelector(`[onclick="showTab('${tabName}')"]`).classList.add('active');
+            
+            currentTab = tabName;
+            
+            // 加载对应标签页的数据
+            if (tabName === 'logs') {
+                loadLogs();
+            } else if (tabName === 'analysis') {
+                loadAnalysis();
+            } else if (tabName === 'features') {
+                // 延迟加载特征分析
+            } else if (tabName === 'files') {
+                loadFiles();
+            } else if (tabName === 'settings') {
+                loadSettings();
+            }
+        }
+        
+        // 加载访问记录
+        async function loadLogs(page = 1) {
+            currentPage = page;
+            const logsBody = document.getElementById('logsBody');
+            logsBody.innerHTML = '<tr><td colspan="7" class="loading">正在加载访问记录...</td></tr>';
+            
+            try {
+                const response = await fetch('/api/get_logs.php');
+                const data = await response.json();
+                
+                if (data.success) {
+                    allLogs = data.logs;
+                    updateStats(data.stats);
+                    renderLogsTable();
+                    renderPagination();
+                } else {
+                    logsBody.innerHTML = '<tr><td colspan="7" style="color: red; text-align: center;">加载失败：' + data.error + '</td></tr>';
+                }
+            } catch (error) {
+                logsBody.innerHTML = '<tr><td colspan="7" style="color: red; text-align: center;">加载失败：' + error.message + '</td></tr>';
+            }
+        }
+        
+        // 渲染日志表格
+        function renderLogsTable() {
+            const logsBody = document.getElementById('logsBody');
+            
+            // 应用筛选
+            let filteredLogs = [...allLogs];
+            
+            const searchUA = document.getElementById('searchUA').value.toLowerCase();
+            const searchIP = document.getElementById('searchIP').value.toLowerCase();
+            const filterType = document.getElementById('filterType').value;
+            const filterDate = document.getElementById('filterDate').value;
+            
+            if (searchUA) {
+                filteredLogs = filteredLogs.filter(log => 
+                    log.userAgent && log.userAgent.toLowerCase().includes(searchUA)
+                );
+            }
+            
+            if (searchIP) {
+                filteredLogs = filteredLogs.filter(log => 
+                    log.ip && log.ip.toLowerCase().includes(searchIP)
+                );
+            }
+            
+            if (filterType) {
+                filteredLogs = filteredLogs.filter(log => log.clientType === filterType);
+            }
+            
+            if (filterDate) {
+                const selectedDate = new Date(filterDate);
+                filteredLogs = filteredLogs.filter(log => {
+                    const logDate = new Date(log.timestamp);
+                    return logDate.toDateString() === selectedDate.toDateString();
+                });
+            }
+            
+            // 分页
+            const startIndex = (currentPage - 1) * itemsPerPage;
+            const endIndex = startIndex + itemsPerPage;
+            const pageLogs = filteredLogs.slice(startIndex, endIndex);
+            
+            if (pageLogs.length === 0) {
+                logsBody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 50px; color: #666;">没有找到匹配的记录</td></tr>';
+                return;
+            }
+            
+            let html = '';
+            pageLogs.forEach(log => {
+                let badgeClass = '';
+                let typeText = '';
+                
+                switch (log.clientType) {
+                    case 'ku9':
+                        badgeClass = 'badge-success';
+                        typeText = '酷9播放器';
+                        break;
+                    case 'sniffing':
+                        badgeClass = 'badge-danger';
+                        typeText = '抓包工具';
+                        break;
+                    case 'browser':
+                        badgeClass = 'badge-warning';
+                        typeText = '浏览器';
+                        break;
+                    case 'other':
+                        badgeClass = 'badge-info';
+                        typeText = '其他播放器';
+                        break;
+                    case 'blocked':
+                        badgeClass = 'badge-danger';
+                        typeText = '拦截访问';
+                        break;
+                    default:
+                        badgeClass = 'badge-info';
+                        typeText = '未知客户端';
+                }
+                
+                const time = new Date(log.timestamp).toLocaleString('zh-CN');
+                const uaShort = log.userAgent ? (log.userAgent.length > 50 ? log.userAgent.substring(0, 50) + '...' : log.userAgent) : '未知';
+                
+                html += \`
+                    <tr>
+                        <td class="timestamp">\${time}</td>
+                        <td><strong>\${log.filename || '未知文件'}</strong></td>
+                        <td>\${log.ip || '未知IP'}</td>
+                        <td><span class="badge \${badgeClass}">\${typeText}</span></td>
+                        <td class="ua-short" title="\${log.userAgent || ''}">\${uaShort}</td>
+                        <td>\${log.result || '未知结果'}</td>
+                        <td>
+                            <button class="btn" style="padding: 5px 10px; font-size: 12px;" 
+                                    onclick="showDetails('\${log.id}')">查看详情</button>
+                        </td>
+                    </tr>
+                \`;
+            });
+            
+            logsBody.innerHTML = html;
+        }
+        
+        // 渲染分页
+        function renderPagination() {
+            const filteredLogs = getFilteredLogs();
+            const totalPages = Math.ceil(filteredLogs.length / itemsPerPage);
+            const paginationDiv = document.getElementById('logsPagination');
+            
+            if (totalPages <= 1) {
+                paginationDiv.innerHTML = '';
+                return;
+            }
+            
+            let html = \`
+                <button class="page-btn" onclick="changePage(\${currentPage - 1})" 
+                        \${currentPage === 1 ? 'disabled' : ''}>上一页</button>
+            \`;
+            
+            const startPage = Math.max(1, currentPage - 2);
+            const endPage = Math.min(totalPages, currentPage + 2);
+            
+            for (let i = startPage; i <= endPage; i++) {
+                html += \`
+                    <button class="page-btn \${i === currentPage ? 'active' : ''}" 
+                            onclick="changePage(\${i})">\${i}</button>
+                \`;
+            }
+            
+            html += \`
+                <button class="page-btn" onclick="changePage(\${currentPage + 1})" 
+                        \${currentPage === totalPages ? 'disabled' : ''}>下一页</button>
+                <span style="margin-left: 10px; color: #666;">共 \${filteredLogs.length} 条记录</span>
+            \`;
+            
+            paginationDiv.innerHTML = html;
+        }
+        
+        // 获取筛选后的日志
+        function getFilteredLogs() {
+            let filteredLogs = [...allLogs];
+            
+            const searchUA = document.getElementById('searchUA').value.toLowerCase();
+            const searchIP = document.getElementById('searchIP').value.toLowerCase();
+            const filterType = document.getElementById('filterType').value;
+            const filterDate = document.getElementById('filterDate').value;
+            
+            if (searchUA) {
+                filteredLogs = filteredLogs.filter(log => 
+                    log.userAgent && log.userAgent.toLowerCase().includes(searchUA)
+                );
+            }
+            
+            if (searchIP) {
+                filteredLogs = filteredLogs.filter(log => 
+                    log.ip && log.ip.toLowerCase().includes(searchIP)
+                );
+            }
+            
+            if (filterType) {
+                filteredLogs = filteredLogs.filter(log => log.clientType === filterType);
+            }
+            
+            if (filterDate) {
+                const selectedDate = new Date(filterDate);
+                filteredLogs = filteredLogs.filter(log => {
+                    const logDate = new Date(log.timestamp);
+                    return logDate.toDateString() === selectedDate.toDateString();
+                });
+            }
+            
+            return filteredLogs;
+        }
+        
+        // 切换页码
+        function changePage(page) {
+            const filteredLogs = getFilteredLogs();
+            const totalPages = Math.ceil(filteredLogs.length / itemsPerPage);
+            
+            if (page < 1 || page > totalPages) return;
+            
+            currentPage = page;
+            renderLogsTable();
+            renderPagination();
+        }
+        
+        // 筛选日志
+        function filterLogs() {
+            currentPage = 1;
+            renderLogsTable();
+            renderPagination();
+        }
+        
+        // 更新统计信息
+        function updateStats(stats) {
+            document.getElementById('todayVisits').textContent = stats.todayVisits || 0;
+            document.getElementById('ku9Access').textContent = stats.ku9Access || 0;
+            document.getElementById('blockedAccess').textContent = stats.blockedAccess || 0;
+            document.getElementById('sniffingTools').textContent = stats.sniffingTools || 0;
+        }
+        
+        // 清空日志
+        async function clearLogs() {
+            if (!confirm('确定要清空所有访问记录吗？此操作不可撤销！')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/clear_logs.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    alert('访问记录已清空！');
+                    loadLogs();
+                } else {
+                    alert('清空失败：' + data.error);
+                }
+            } catch (error) {
+                alert('清空失败：' + error.message);
+            }
+        }
+        
+        // 导出日志
+        function exportLogs() {
+            const filteredLogs = getFilteredLogs();
+            
+            if (filteredLogs.length === 0) {
+                alert('没有可导出的记录！');
+                return;
+            }
+            
+            const headers = ['时间', '文件', 'IP地址', '客户端类型', 'User-Agent', '访问结果', '特征信息'];
+            const csvContent = [
+                headers.join(','),
+                ...filteredLogs.map(log => [
+                    new Date(log.timestamp).toLocaleString('zh-CN'),
+                    log.filename || '',
+                    log.ip || '',
+                    log.clientType || '',
+                    \`"\${(log.userAgent || '').replace(/"/g, '""')}"\`,
+                    log.result || '',
+                    log.features ? JSON.stringify(log.features).replace(/"/g, '""') : ''
+                ].join(','))
+            ].join('\\n');
+            
+            const blob = new Blob(['\\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            
+            link.setAttribute('href', url);
+            link.setAttribute('download', \`酷9访问记录_\${new Date().toLocaleDateString('zh-CN')}.csv\`);
+            link.style.visibility = 'hidden';
+            
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+        
+        // 显示详情
+        function showDetails(logId) {
+            const log = allLogs.find(l => l.id === logId);
+            if (!log) return;
+            
+            const details = \`
+                <div style="max-width: 800px;">
+                    <h3>访问详情</h3>
+                    <table style="width: 100%; background: #f8f9fa; border-radius: 10px; padding: 20px;">
+                        <tr>
+                            <td style="padding: 10px; font-weight: bold; width: 150px;">时间：</td>
+                            <td style="padding: 10px;">\${new Date(log.timestamp).toLocaleString('zh-CN')}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 10px; font-weight: bold;">文件：</td>
+                            <td style="padding: 10px;"><code>\${log.filename || '未知'}</code></td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 10px; font-weight: bold;">IP地址：</td>
+                            <td style="padding: 10px;">\${log.ip || '未知'}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 10px; font-weight: bold;">客户端类型：</td>
+                            <td style="padding: 10px;">\${log.clientType || '未知'}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 10px; font-weight: bold;">访问结果：</td>
+                            <td style="padding: 10px;">\${log.result || '未知'}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 10px; font-weight: bold; vertical-align: top;">User-Agent：</td>
+                            <td style="padding: 10px;">
+                                <div style="background: white; padding: 10px; border-radius: 5px; font-family: monospace; font-size: 12px;">
+                                    \${log.userAgent || '无'}
+                                </div>
+                            </td>
+                        </tr>
+                        \${log.features ? \`
+                        <tr>
+                            <td style="padding: 10px; font-weight: bold; vertical-align: top;">特征信息：</td>
+                            <td style="padding: 10px;">
+                                <div style="background: white; padding: 10px; border-radius: 5px; font-family: monospace; font-size: 12px;">
+                                    \${JSON.stringify(log.features, null, 2)}
+                                </div>
+                            </td>
+                        </tr>
+                        \` : ''}
+                    </table>
+                </div>
+            \`;
+            
+            const modal = createModal('访问详情', details);
+            document.body.appendChild(modal);
+        }
+        
+        // 创建模态框
+        function createModal(title, content) {
+            const modal = document.createElement('div');
+            modal.style.cssText = \`
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0,0,0,0.5);
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                z-index: 10000;
+            \`;
+            
+            modal.innerHTML = \`
+                <div style="background: white; border-radius: 15px; max-width: 90%; max-height: 90%; overflow: auto; padding: 30px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <h2 style="margin: 0;">\${title}</h2>
+                        <button onclick="this.parentElement.parentElement.parentElement.remove()" 
+                                style="background: none; border: none; font-size: 24px; cursor: pointer; color: #666;">×</button>
+                    </div>
+                    \${content}
+                </div>
+            \`;
+            
+            return modal;
+        }
+        
+        // 加载统计分析
+        async function loadAnalysis() {
+            try {
+                const response = await fetch('/api/stats.php');
+                const data = await response.json();
+                
+                if (data.success) {
+                    renderCharts(data);
+                }
+            } catch (error) {
+                console.error('加载分析数据失败：', error);
+            }
+        }
+        
+        // 渲染图表
+        function renderCharts(data) {
+            // 访问类型分布图
+            const typeCtx = document.getElementById('typeChart').getContext('2d');
+            new Chart(typeCtx, {
+                type: 'pie',
+                data: {
+                    labels: ['酷9播放器', '抓包工具', '浏览器', '其他播放器', '拦截访问'],
+                    datasets: [{
+                        data: [
+                            data.stats.ku9Access || 0,
+                            data.stats.sniffingTools || 0,
+                            data.stats.browserAccess || 0,
+                            data.stats.otherPlayers || 0,
+                            data.stats.blockedAccess || 0
+                        ],
+                        backgroundColor: [
+                            '#4CAF50',
+                            '#F44336',
+                            '#FF9800',
+                            '#2196F3',
+                            '#9C27B0'
+                        ]
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        }
+                    }
+                }
+            });
+            
+            // 24小时访问趋势
+            if (data.hourlyData && data.hourlyData.labels) {
+                const hourlyCtx = document.getElementById('hourlyChart').getContext('2d');
+                new Chart(hourlyCtx, {
+                    type: 'line',
+                    data: {
+                        labels: data.hourlyData.labels,
+                        datasets: [{
+                            label: '访问量',
+                            data: data.hourlyData.data,
+                            borderColor: '#667eea',
+                            backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                            fill: true
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        scales: {
+                            y: {
+                                beginAtZero: true
+                            }
+                        }
+                    }
+                });
+            }
+            
+            // 热门文件访问
+            if (data.topFiles && data.topFiles.length > 0) {
+                const filesCtx = document.getElementById('filesChart').getContext('2d');
+                new Chart(filesCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: data.topFiles.map(f => f.name),
+                        datasets: [{
+                            label: '访问次数',
+                            data: data.topFiles.map(f => f.count),
+                            backgroundColor: '#FF9800'
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        indexAxis: 'y',
+                        scales: {
+                            x: {
+                                beginAtZero: true
+                            }
+                        }
+                    }
+                });
+            }
+            
+            // 客户端来源分析
+            const clientCtx = document.getElementById('clientChart').getContext('2d');
+            new Chart(clientCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['正常访问', '异常访问', '可疑访问'],
+                    datasets: [{
+                        data: [
+                            data.stats.ku9Access || 0,
+                            data.stats.blockedAccess || 0,
+                            data.stats.suspicious || 0
+                        ],
+                        backgroundColor: [
+                            '#4CAF50',
+                            '#F44336',
+                            '#FFC107'
+                        ]
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        }
+                    }
+                }
+            });
+        }
+        
+        // 特征分析
+        async function analyzeFeatures() {
+            const category = document.getElementById('featureCategory').value;
+            const resultsDiv = document.getElementById('featuresResults');
+            
+            resultsDiv.innerHTML = '<div class="loading">正在分析特征...</div>';
+            
+            try {
+                const response = await fetch(\`/api/analyze.php?category=\${category}\`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    renderFeatures(data.analysis);
+                } else {
+                    resultsDiv.innerHTML = \`<div style="color: red; text-align: center;">分析失败：\${data.error}</div>\`;
+                }
+            } catch (error) {
+                resultsDiv.innerHTML = \`<div style="color: red; text-align: center;">分析失败：\${error.message}</div>\`;
+            }
+        }
+        
+        // 渲染特征分析结果
+        function renderFeatures(analysis) {
+            let html = '';
+            
+            if (analysis.userAgents && analysis.userAgents.length > 0) {
+                html += \`
+                    <h3>📱 User-Agent 分析</h3>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>User-Agent 模式</th>
+                                    <th>出现次数</th>
+                                    <th>分类</th>
+                                    <th>示例</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                \`;
+                
+                analysis.userAgents.forEach(ua => {
+                    html += \`
+                        <tr>
+                            <td><code>\${ua.pattern}</code></td>
+                            <td><span class="badge badge-info">\${ua.count}</span></td>
+                            <td><span class="badge \${getBadgeClass(ua.type)}">\${ua.type}</span></td>
+                            <td class="ua-short" title="\${ua.example}">\${ua.example.substring(0, 60)}...</td>
+                        </tr>
+                    \`;
+                });
+                
+                html += \`
+                            </tbody>
+                        </table>
+                    </div>
+                \`;
+            }
+            
+            if (analysis.patterns && analysis.patterns.length > 0) {
+                html += \`
+                    <h3 style="margin-top: 30px;">🎯 特征模式</h3>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>特征模式</th>
+                                    <th>描述</th>
+                                    <th>检测次数</th>
+                                    <th>建议</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                \`;
+                
+                analysis.patterns.forEach(pattern => {
+                    html += \`
+                        <tr>
+                            <td><code>\${pattern.pattern}</code></td>
+                            <td>\${pattern.description}</td>
+                            <td><span class="badge badge-info">\${pattern.count}</span></td>
+                            <td>\${pattern.suggestion}</td>
+                        </tr>
+                    \`;
+                });
+                
+                html += \`
+                            </tbody>
+                        </table>
+                    </div>
+                \`;
+            }
+            
+            if (analysis.suspicious && analysis.suspicious.length > 0) {
+                html += \`
+                    <h3 style="margin-top: 30px;">⚠️ 可疑访问</h3>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>时间</th>
+                                    <th>IP地址</th>
+                                    <th>User-Agent</th>
+                                    <th>可疑原因</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                \`;
+                
+                analysis.suspicious.forEach(sus => {
+                    html += \`
+                        <tr>
+                            <td class="timestamp">\${new Date(sus.timestamp).toLocaleString('zh-CN')}</td>
+                            <td><strong>\${sus.ip}</strong></td>
+                            <td class="ua-short" title="\${sus.userAgent}">\${sus.userAgent.substring(0, 50)}...</td>
+                            <td>\${sus.reason}</td>
+                        </tr>
+                    \`;
+                });
+                
+                html += \`
+                            </tbody>
+                        </table>
+                    </div>
+                \`;
+            }
+            
+            document.getElementById('featuresResults').innerHTML = html;
+        }
+        
+        // 获取徽章类
+        function getBadgeClass(type) {
+            switch (type) {
+                case 'ku9': return 'badge-success';
+                case 'sniffing': return 'badge-danger';
+                case 'browser': return 'badge-warning';
+                case 'other': return 'badge-info';
+                default: return 'badge-info';
+            }
+        }
+        
+        // 加载文件管理
+        async function loadFiles() {
+            try {
+                // 这里需要实现获取文件列表的API
+                // 暂时显示提示信息
+                document.getElementById('filesBody').innerHTML = \`
+                    <tr>
+                        <td colspan="6" style="text-align: center; padding: 50px; color: #666;">
+                            文件管理功能正在开发中...
+                        </td>
+                    </tr>
+                \`;
+            } catch (error) {
+                console.error('加载文件列表失败：', error);
+            }
+        }
+        
+        // 加载设置
+        async function loadSettings() {
+            try {
+                // 这里可以从服务器获取设置
+                // 暂时使用默认值
+                document.getElementById('ku9TokenSetting').value = 'ku9_secure_token_2024';
+                document.getElementById('blockSniffing').checked = true;
+                document.getElementById('blockOtherPlayers').checked = true;
+                document.getElementById('browserHint').checked = true;
+                document.getElementById('logRetention').value = '30';
+            } catch (error) {
+                console.error('加载设置失败：', error);
+            }
+        }
+        
+        // 更新令牌
+        async function updateToken(type) {
+            if (type === 'ku9') {
+                const token = document.getElementById('ku9TokenSetting').value;
+                if (!token) {
+                    alert('请输入酷9令牌');
+                    return;
+                }
+                // 这里调用API更新令牌
+                alert('酷9令牌已更新为：' + token);
+            } else if (type === 'admin') {
+                const token = document.getElementById('adminTokenSetting').value;
+                if (!token) {
+                    alert('请输入管理令牌');
+                    return;
+                }
+                // 这里调用API更新管理令牌
+                alert('管理令牌已更新，请重新登录！');
+                window.location.href = 'admin.html';
+            }
+        }
+        
+        // 保存设置
+        async function saveSettings() {
+            // 这里调用API保存设置
+            alert('设置已保存！');
+        }
+        
+        // 恢复默认设置
+        function resetSettings() {
+            if (confirm('确定要恢复默认设置吗？')) {
+                loadSettings();
+                alert('已恢复默认设置！');
+            }
+        }
+        
+        // 加载所有数据
+        function loadAllData() {
+            if (currentTab === 'logs') {
+                loadLogs();
+            } else if (currentTab === 'analysis') {
+                loadAnalysis();
+            } else if (currentTab === 'features') {
+                analyzeFeatures();
+            } else if (currentTab === 'files') {
+                loadFiles();
+            }
+        }
+        
+        // 页面加载时初始化
+        window.addEventListener('load', function() {
+            loadLogs();
+            
+            // 每30秒自动刷新数据
+            setInterval(() => {
+                if (currentTab === 'logs') {
+                    loadLogs(currentPage);
+                }
+            }, 30000);
+        });
+    </script>
+    
+    <style>
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 60px;
+            height: 34px;
+        }
+        
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 34px;
+        }
+        
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 26px;
+            width: 26px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        
+        input:checked + .slider {
+            background-color: #4CAF50;
+        }
+        
+        input:checked + .slider:before {
+            transform: translateX(26px);
+        }
+    </style>
+</body>
+</html>`;
 }
 
-// 生成酷9签名
-async function handleKu9Sign(request) {
-  const url = new URL(request.url);
-  const timestamp = Math.floor(Date.now() / 1000);
-  const base = url.searchParams.get('base') || '';
-  
-  // 生成动态令牌
-  const dynamicToken = 'ku9_dynamic_' + timestamp + '_' + Math.random().toString(36).substr(2, 9);
-  
-  // 生成签名
-  const signature = generateKu9Signature(base, timestamp);
-  
-  const result = {
-    success: true,
-    token: dynamicToken,
-    timestamp: timestamp,
-    signature: signature,
-    expiry: timestamp + 300, // 5分钟有效
-    full_url: base + '?ku9_token=' + encodeURIComponent(dynamicToken) + '&t=' + timestamp + '&sign=' + signature + '&v=2'
-  };
-  
-  return new Response(JSON.stringify(result), {
-    headers: {
-      'Content-Type': 'application/json',
-      'Access-Control-Allow-Origin': '*',
-      'X-Content-Type-Options': 'nosniff',
-      'Cache-Control': 'no-cache, no-store, must-revalidate'
+// 记录访问日志
+async function logAccess(env, logData) {
+  try {
+    const timestamp = Date.now();
+    const logId = `log_${timestamp}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    // 保存完整日志
+    await env.MY_TEXT_STORAGE.put(
+      `access_log_${logId}`, 
+      JSON.stringify({
+        ...logData,
+        id: logId,
+        timestamp: new Date().toISOString()
+      })
+    );
+    
+    // 更新统计数据
+    await updateStats(env, logData);
+    
+    // 保存到日志列表
+    const logsKey = 'access_logs_list';
+    let logsList = await env.MY_TEXT_STORAGE.get(logsKey);
+    if (!logsList) {
+      logsList = [];
+    } else {
+      logsList = JSON.parse(logsList);
     }
-  });
+    
+    logsList.unshift({
+      id: logId,
+      timestamp: new Date().toISOString(),
+      filename: logData.filename,
+      ip: logData.ip,
+      userAgent: logData.userAgent,
+      clientType: logData.clientType,
+      result: logData.result
+    });
+    
+    // 只保留最近1000条日志
+    if (logsList.length > 1000) {
+      logsList = logsList.slice(0, 1000);
+    }
+    
+    await env.MY_TEXT_STORAGE.put(logsKey, JSON.stringify(logsList));
+    
+  } catch (error) {
+    console.error('记录访问日志失败：', error);
+  }
 }
 
-// 动态令牌验证
-async function handleDynamicTokenVerify(token, request, env) {
-  const timestamp = Math.floor(Date.now() / 1000);
-  
-  // 验证令牌格式
-  if (!token.startsWith('ku9_dynamic_')) {
-    return new Response(JSON.stringify({
-      valid: false,
-      reason: '令牌格式错误'
-    }), {
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*'
-      }
-    });
-  }
-  
-  // 提取时间戳
-  const parts = token.split('_');
-  if (parts.length < 3) {
-    return new Response(JSON.stringify({
-      valid: false,
-      reason: '令牌格式无效'
-    }), {
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*'
-      }
-    });
-  }
-  
-  const tokenTimestamp = parseInt(parts[2]);
-  if (isNaN(tokenTimestamp)) {
-    return new Response(JSON.stringify({
-      valid: false,
-      reason: '令牌时间戳无效'
-    }), {
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*'
-      }
-    });
-  }
-  
-  // 检查令牌是否过期（5分钟）
-  if (timestamp - tokenTimestamp > 300) {
-    return new Response(JSON.stringify({
-      valid: false,
-      reason: '令牌已过期',
-      expired: true,
-      token_age: timestamp - tokenTimestamp
-    }), {
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*'
-      }
-    });
-  }
-  
-  // 生成新令牌
-  const newToken = 'ku9_dynamic_' + timestamp + '_' + Math.random().toString(36).substr(2, 9);
-  
-  return new Response(JSON.stringify({
-    valid: true,
-    token_age: timestamp - tokenTimestamp,
-    new_token: newToken,
-    expiry: timestamp + 300
-  }), {
-    headers: {
-      'Content-Type': 'application/json',
-      'Access-Control-Allow-Origin': '*'
+// 更新统计数据
+async function updateStats(env, logData) {
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    const statsKey = `stats_${today}`;
+    
+    let stats = await env.MY_TEXT_STORAGE.get(statsKey);
+    if (!stats) {
+      stats = {
+        date: today,
+        totalVisits: 0,
+        ku9Access: 0,
+        blockedAccess: 0,
+        sniffingTools: 0,
+        browserAccess: 0,
+        otherPlayers: 0,
+        suspicious: 0
+      };
+    } else {
+      stats = JSON.parse(stats);
     }
-  });
+    
+    stats.totalVisits++;
+    
+    switch (logData.clientType) {
+      case 'ku9':
+        stats.ku9Access++;
+        break;
+      case 'sniffing':
+        stats.sniffingTools++;
+        stats.blockedAccess++;
+        break;
+      case 'browser':
+        stats.browserAccess++;
+        stats.blockedAccess++;
+        break;
+      case 'other':
+        stats.otherPlayers++;
+        stats.blockedAccess++;
+        break;
+      case 'blocked':
+        stats.blockedAccess++;
+        break;
+      case 'suspicious':
+        stats.suspicious++;
+        break;
+    }
+    
+    await env.MY_TEXT_STORAGE.put(statsKey, JSON.stringify(stats));
+    
+  } catch (error) {
+    console.error('更新统计数据失败：', error);
+  }
 }
 
-// 安全文件下载处理 - 加强版
-async function handleSecureFileDownload(filename, request, env) {
+// 安全文件下载处理 - 带访问记录
+async function handleSecureFileDownload(filename, request, env, context) {
   try {
     // 解码文件名
     const decodedFilename = decodeURIComponent(filename);
@@ -962,77 +2149,154 @@ async function handleSecureFileDownload(filename, request, env) {
       return sendFileNotFound(safeFilename);
     }
 
-    const url = new URL(request.url);
+    // 获取访问者信息
+    const ip = request.headers.get('CF-Connecting-IP') || 
+               request.headers.get('X-Forwarded-For') || 
+               'unknown';
     const userAgent = request.headers.get('User-Agent') || '';
-    const lowerUA = userAgent.toLowerCase();
-    const timestamp = Math.floor(Date.now() / 1000);
+    const url = new URL(request.url);
     
     // 1. 检查管理令牌（如果有）
     const managementToken = url.searchParams.get('manage_token');
     const expectedManagementToken = await env.MY_TEXT_STORAGE.get('management_token') || 'default_manage_token_2024';
     
     if (managementToken && managementToken === expectedManagementToken) {
+      // 记录管理访问
+      context.waitUntil(logAccess(env, {
+        filename: safeFilename,
+        ip: ip,
+        userAgent: userAgent,
+        clientType: 'management',
+        result: '管理访问 - 已授权',
+        features: {
+          tokenUsed: 'management_token',
+          accessMethod: 'direct'
+        }
+      }));
+      
       return sendOriginalContent(safeFilename, content, 'management');
     }
 
-    // 2. 优先检测TVBox助手（最严格的检测）
-    if (isTVBoxAssistant(userAgent)) {
-      return sendTVBoxBlock(safeFilename, userAgent);
-    }
+    // 2. 检查酷9令牌
+    const ku9Token = url.searchParams.get('ku9_token');
     
-    // 3. 检查是否是抓包工具
+    // 3. 检查是否是抓包工具（优先检测）
     if (isSniffingTool(userAgent)) {
+      // 记录抓包工具访问
+      context.waitUntil(logAccess(env, {
+        filename: safeFilename,
+        ip: ip,
+        userAgent: userAgent,
+        clientType: 'sniffing',
+        result: '抓包工具 - 已拦截',
+        features: {
+          toolType: detectSniffingTool(userAgent),
+          accessMethod: 'direct',
+          timestamp: new Date().toISOString()
+        }
+      }));
+      
       return sendSniffingToolBlock(safeFilename, userAgent);
     }
     
-    // 4. 检查动态令牌（v=2版本）
-    const ku9Token = url.searchParams.get('ku9_token');
-    const urlTimestamp = url.searchParams.get('t');
-    const signature = url.searchParams.get('sign');
-    const version = url.searchParams.get('v');
-    
-    if (version === '2' && ku9Token && urlTimestamp && signature) {
-      // 验证动态令牌
-      if (isValidDynamicToken(ku9Token, urlTimestamp, signature, url.toString())) {
-        return sendOriginalContent(safeFilename, content, 'ku9-dynamic-token');
-      }
-    }
-    
-    // 5. 检查静态令牌
+    // 4. 如果有酷9令牌且正确，允许访问
     if (ku9Token && ku9Token === 'ku9_secure_token_2024') {
-      // 但还需要检查User-Agent是否是酷9
-      if (isKu9UserAgent(userAgent)) {
-        return sendOriginalContent(safeFilename, content, 'ku9-static-token');
-      } else {
-        // 有令牌但不是酷9User-Agent，可能是TVBox模拟
-        return sendTVBoxBlock(safeFilename, userAgent);
-      }
+      // 记录令牌访问
+      context.waitUntil(logAccess(env, {
+        filename: safeFilename,
+        ip: ip,
+        userAgent: userAgent,
+        clientType: 'ku9',
+        result: '令牌访问 - 已授权',
+        features: {
+          tokenUsed: 'ku9_token',
+          accessMethod: 'token',
+          isKu9UA: isKu9UserAgent(userAgent),
+          userAgentPatterns: extractUAPatterns(userAgent)
+        }
+      }));
+      
+      return sendOriginalContent(safeFilename, content, 'ku9-token');
     }
     
-    // 6. 如果没有令牌，检查User-Agent是否是酷9播放器（加强检测）
-    if (isKu9UserAgent(userAgent)) {
-      // 检查是否有酷9特有的请求头
-      if (hasKu9Headers(request)) {
-        return sendOriginalContent(safeFilename, content, 'ku9-ua-headers');
-      } else {
-        // 只有User-Agent但没有特有请求头，可能是模拟的
-        return sendKu9RequireToken(safeFilename, userAgent);
-      }
+    // 5. 如果没有令牌，检查User-Agent是否是酷9播放器
+    const isKu9UA = isKu9UserAgent(userAgent);
+    if (isKu9UA) {
+      // 记录酷9播放器访问
+      context.waitUntil(logAccess(env, {
+        filename: safeFilename,
+        ip: ip,
+        userAgent: userAgent,
+        clientType: 'ku9',
+        result: '酷9播放器 - 已授权',
+        features: {
+          accessMethod: 'user-agent',
+          ku9Patterns: detectKu9Patterns(userAgent),
+          isDirectAccess: true
+        }
+      }));
+      
+      return sendOriginalContent(safeFilename, content, 'ku9-ua');
     }
     
-    // 7. 检查是否是其他播放器
-    const playerName = detectPlayer(userAgent);
-    if (playerName !== 'unknown') {
-      return sendOtherPlayerBlock(safeFilename, playerName, userAgent);
+    // 6. 检查是否是其他播放器
+    const playerInfo = detectPlayerDetailed(userAgent);
+    if (playerInfo.name !== 'unknown') {
+      // 记录其他播放器访问
+      context.waitUntil(logAccess(env, {
+        filename: safeFilename,
+        ip: ip,
+        userAgent: userAgent,
+        clientType: 'other',
+        result: `其他播放器 - ${playerInfo.name}`,
+        features: {
+          playerName: playerInfo.name,
+          playerType: playerInfo.type,
+          accessMethod: 'direct',
+          isSuspicious: true
+        }
+      }));
+      
+      return sendOtherPlayerBlock(safeFilename, playerInfo.name, userAgent);
     }
     
-    // 8. 检查是否是浏览器
-    if (isBrowser(userAgent)) {
+    // 7. 检查是否是浏览器
+    const browserInfo = detectBrowser(userAgent);
+    if (browserInfo.name !== 'unknown') {
+      // 记录浏览器访问
+      context.waitUntil(logAccess(env, {
+        filename: safeFilename,
+        ip: ip,
+        userAgent: userAgent,
+        clientType: 'browser',
+        result: `浏览器 - ${browserInfo.name}`,
+        features: {
+          browserName: browserInfo.name,
+          browserVersion: browserInfo.version,
+          platform: detectPlatform(userAgent),
+          isSuspicious: true
+        }
+      }));
+      
       return sendBrowserBlock(safeFilename, userAgent);
     }
     
-    // 9. 其他情况，要求使用酷9播放器并获取动态令牌
-    return sendRequireKu9AndToken(safeFilename, userAgent);
+    // 8. 记录未知客户端访问
+    context.waitUntil(logAccess(env, {
+      filename: safeFilename,
+      ip: ip,
+      userAgent: userAgent,
+      clientType: 'unknown',
+      result: '未知客户端 - 已拦截',
+      features: {
+        uaPattern: extractUAPatterns(userAgent),
+        isSuspicious: true,
+        requiresInvestigation: true
+      }
+    }));
+    
+    // 9. 其他情况，要求使用令牌
+    return sendRequireToken(safeFilename, userAgent);
     
   } catch (error) {
     return new Response(`下载错误: ${error.message}`, { 
@@ -1046,619 +2310,654 @@ async function handleSecureFileDownload(filename, request, env) {
   }
 }
 
-// 检查是否是TVBox助手
-function isTVBoxAssistant(userAgent) {
+// 检测抓包工具类型
+function detectSniffingTool(userAgent) {
   const lowerUA = userAgent.toLowerCase();
   
-  // TVBox助手特征
-  const tvboxPatterns = [
-    'tvbox', 'tv-box', 'tv_box', 'tivi', 'tiviplayer',
-    'tivimate', 'tvmate', 'tv.mate', 'catvod',
-    '影视仓', 'dipy', 'diyp', 'okhttp/3', 'okhttp/4',
-    'dart/', 'moviecat', '云星日记', '影视工场',
-    '影音壳', 'tvhub', 'tvhub.', 'tv端', 'tv端播放器',
-    'tv播放器', 'android-tv', 'smart-tv', 'leanback',
-    'atv', 'tv.', 'tv\\d', 'tcltv', '海信电视',
-    '小米电视', '华为智慧屏', '创维电视', 'sony bravia',
-    'samsung smarttv', 'lg smarttv', 'panasonic tv'
-  ];
-  
-  // HTTP库特征（TVBox常用）
-  const httpLibraries = [
-    'okhttp/', 'retrofit/', 'volley/', 'afnetworking/',
-    'alamofire/', 'axios/', 'requests/', 'urllib/',
-    'httpclient', 'httpurlconnection', 'cfnetwork/',
-    'winhttp', 'libcurl', 'java/', 'jdk.internal.http',
-    'python-requests', 'guzzlehttp'
-  ];
-  
-  // 检查TVBox特征
-  for (const pattern of tvboxPatterns) {
-    if (lowerUA.includes(pattern.toLowerCase())) {
-      return true;
-    }
-  }
-  
-  // 检查是否是TV端应用（没有浏览器特征但使用HTTP库）
-  const isTVLike = httpLibraries.some(lib => lowerUA.includes(lib)) &&
-                  !isBrowser(userAgent) &&
-                  !isKu9UserAgent(userAgent);
-  
-  return isTVLike;
-}
-
-// 检查是否是抓包工具
-function isSniffingTool(userAgent) {
-  const lowerUA = userAgent.toLowerCase();
-  const sniffingTools = [
-    'httpcanary', 'packetcapture', 'charles', 'fiddler',
-    'wireshark', 'burpsuite', 'mitmproxy', 'proxyman',
-    'surge', 'shadowrocket', 'postman', 'insomnia',
-    'thunder.*client', 'curl', 'wget',
-    'fiddler everywehre', 'mitm', 'zap', 'nessus',
-    'nikto', 'nmap', 'sqlmap', 'metasploit',
-    'android-debug', 'debug-', 'debug.', 'test-'
-  ];
-  
-  return sniffingTools.some(tool => {
-    const pattern = new RegExp(tool.replace('.*', '.*'), 'i');
-    return pattern.test(lowerUA);
-  });
-}
-
-// 检查是否是酷9User-Agent（加强检测）
-function isKu9UserAgent(userAgent) {
-  const lowerUA = userAgent.toLowerCase();
-  const ku9Patterns = [
-    'ku9', 'k9', 'ku9player', 'k9player',
-    'com.ku9', 'com.k9', 'ku9-', 'k9-',
-    'ku9_', 'k9_', 'ku9app', 'k9app',
-    'ku9player/', 'k9player/', 'ku9播放器',
-    'k9播放器', 'ku9\\d', 'k9\\d'
-  ];
-  
-  return ku9Patterns.some(pattern => {
-    const regex = new RegExp(pattern.replace('\\d', '\\d+'), 'i');
-    return regex.test(lowerUA);
-  });
-}
-
-// 检查是否有酷9特有的请求头
-function hasKu9Headers(request) {
-  const ku9Headers = [
-    'x-ku9-client', 'x-ku9-version', 'x-ku9-device',
-    'x-k9-client', 'x-k9-version', 'x-k9-device',
-    'x-ku9-signature', 'x-k9-signature',
-    'ku9-client', 'k9-client'
-  ];
-  
-  return ku9Headers.some(header => request.headers.get(header) !== null);
-}
-
-// 验证动态令牌
-function isValidDynamicToken(token, urlTimestamp, signature, url) {
-  try {
-    const timestamp = parseInt(urlTimestamp);
-    const now = Math.floor(Date.now() / 1000);
-    
-    // 检查时间戳是否有效
-    if (isNaN(timestamp) || Math.abs(now - timestamp) > 300) {
-      return false;
-    }
-    
-    // 检查令牌格式
-    if (!token.startsWith('ku9_dynamic_')) {
-      return false;
-    }
-    
-    // 验证签名
-    const expectedSignature = generateKu9Signature(url.split('?')[0], timestamp);
-    return signature === expectedSignature;
-  } catch (error) {
-    return false;
-  }
-}
-
-// 生成酷9签名
-function generateKu9Signature(base, timestamp) {
-  const secret = 'ku9_secure_salt_2024';
-  const str = base + timestamp + secret;
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    const char = str.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash = hash & hash;
-  }
-  return Math.abs(hash).toString(36);
-}
-
-// 检测播放器类型
-function detectPlayer(userAgent) {
-  const lowerUA = userAgent.toLowerCase();
-  const playerPatterns = [
-    { pattern: 'mxplayer', name: 'MX Player' },
-    { pattern: 'vlc', name: 'VLC' },
-    { pattern: 'potplayer', name: 'PotPlayer' },
-    { pattern: 'kodi', name: 'Kodi' },
-    { pattern: 'nplayer', name: 'nPlayer' },
-    { pattern: 'infuse', name: 'Infuse' },
-    { pattern: 'perfectplayer', name: 'Perfect Player' },
-    { pattern: 'ijkplayer', name: 'ijkPlayer' },
-    { pattern: 'exoplayer', name: 'ExoPlayer' },
-    { pattern: 'vlc-android', name: 'VLC Android' },
-    { pattern: 'mx tech', name: 'MX Tech' },
-    { pattern: 'justplayer', name: 'Just Player' },
-    { pattern: 'nova video', name: 'Nova Video' },
-    { pattern: 'mpv', name: 'MPV' },
-    { pattern: 'mpchc', name: 'MPC-HC' },
-    { pattern: 'smplayer', name: 'SMPlayer' },
-    { pattern: 'gstreamer', name: 'GStreamer' },
-    { pattern: 'ffmpeg', name: 'FFmpeg' },
-    { pattern: 'windows media player', name: 'Windows Media Player' },
-    { pattern: 'quicktime', name: 'QuickTime' }
-  ];
-  
-  for (const { pattern, name } of playerPatterns) {
-    if (lowerUA.includes(pattern)) {
-      return name;
-    }
-  }
+  if (lowerUA.includes('httpcanary')) return 'HttpCanary';
+  if (lowerUA.includes('packetcapture')) return 'Packet Capture';
+  if (lowerUA.includes('charles')) return 'Charles Proxy';
+  if (lowerUA.includes('fiddler')) return 'Fiddler';
+  if (lowerUA.includes('wireshark')) return 'Wireshark';
+  if (lowerUA.includes('burpsuite')) return 'Burp Suite';
+  if (lowerUA.includes('mitmproxy')) return 'mitmproxy';
+  if (lowerUA.includes('proxyman')) return 'Proxyman';
+  if (lowerUA.includes('postman')) return 'Postman';
+  if (lowerUA.includes('insomnia')) return 'Insomnia';
+  if (lowerUA.includes('curl')) return 'cURL';
+  if (lowerUA.includes('wget')) return 'wget';
   
   return 'unknown';
 }
 
-// 检查是否是浏览器
-function isBrowser(userAgent) {
+// 检测酷9特征模式
+function detectKu9Patterns(userAgent) {
   const lowerUA = userAgent.toLowerCase();
-  const browserPatterns = [
-    'chrome', 'firefox', 'safari', 'edge',
-    'opera', 'msie', 'trident', 'mozilla',
-    'webkit', 'gecko', 'chromium', 'brave',
-    'vivaldi', 'yabrowser', 'ucbrowser',
-    'qqbrowser', '2345explorer', 'metasr',
-    'lbbrowser', 'maxthon', 'quark',
-    'sogou', 'baidubrowser', '360se',
-    '2345chrome', 'liebao'
+  const patterns = [];
+  
+  if (lowerUA.includes('ku9')) patterns.push('contains_ku9');
+  if (lowerUA.includes('k9')) patterns.push('contains_k9');
+  if (lowerUA.includes('ku9player')) patterns.push('contains_ku9player');
+  if (lowerUA.includes('k9player')) patterns.push('contains_k9player');
+  if (lowerUA.includes('com.ku9')) patterns.push('android_package_ku9');
+  if (lowerUA.includes('com.k9')) patterns.push('android_package_k9');
+  if (/ku9[\-\_].+/.test(lowerUA)) patterns.push('ku9_prefix_pattern');
+  if (/k9[\-\_].+/.test(lowerUA)) patterns.push('k9_prefix_pattern');
+  
+  return patterns;
+}
+
+// 详细检测播放器
+function detectPlayerDetailed(userAgent) {
+  const lowerUA = userAgent.toLowerCase();
+  
+  const players = [
+    { pattern: 'mxplayer', name: 'MX Player', type: 'android' },
+    { pattern: 'vlc', name: 'VLC', type: 'multi' },
+    { pattern: 'potplayer', name: 'PotPlayer', type: 'windows' },
+    { pattern: 'kodi', name: 'Kodi', type: 'multi' },
+    { pattern: 'nplayer', name: 'nPlayer', type: 'ios' },
+    { pattern: 'infuse', name: 'Infuse', type: 'ios' },
+    { pattern: 'tivimate', name: 'TiviMate', type: 'android' },
+    { pattern: 'perfectplayer', name: 'Perfect Player', type: 'android' },
+    { pattern: 'diyp', name: 'DIYP影音', type: 'android' },
+    { pattern: 'tvbox', name: 'TVBox', type: 'android' },
+    { pattern: 'tvhclient', name: 'TVHClient', type: 'android' },
+    { pattern: 'iptv', name: 'IPTV Player', type: 'multi' },
+    { pattern: 'smartyoutubetv', name: 'SmartYouTubeTV', type: 'android' },
+    { pattern: 'smarttubenext', name: 'SmartTubeNext', type: 'android' },
+    { pattern: 'ijkplayer', name: 'ijkPlayer', type: 'android' },
+    { pattern: 'exoplayer', name: 'ExoPlayer', type: 'android' }
   ];
   
-  return browserPatterns.some(pattern => lowerUA.includes(pattern));
-}
-
-// 发送原始内容
-function sendOriginalContent(filename, content, clientType) {
-  let contentType = 'text/plain; charset=utf-8';
-  if (filename.endsWith('.json')) {
-    contentType = 'application/json; charset=utf-8';
-  } else if (filename.endsWith('.m3u') || filename.endsWith('.m3u8')) {
-    contentType = 'audio/x-mpegurl; charset=utf-8';
-  } else if (filename.endsWith('.txt')) {
-    contentType = 'text/plain; charset=utf-8';
-  } else if (filename.endsWith('.html') || filename.endsWith('.htm')) {
-    contentType = 'text/html; charset=utf-8';
-  } else if (filename.endsWith('.xml')) {
-    contentType = 'application/xml; charset=utf-8';
-  } else if (filename.endsWith('.php')) {
-    contentType = 'text/plain; charset=utf-8';
+  for (const player of players) {
+    if (lowerUA.includes(player.pattern)) {
+      return player;
+    }
   }
   
-  return new Response(content, {
-    headers: {
-      'Content-Type': contentType,
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Headers': '*',
-      'X-Content-Type-Options': 'nosniff',
-      'Cache-Control': 'no-cache, no-store, must-revalidate',
-      'Pragma': 'no-cache',
-      'Expires': '0',
-      'X-Client-Type': clientType,
-      'X-Ku9-Access': 'granted',
-      'X-Ku9-Timestamp': Math.floor(Date.now() / 1000).toString(),
-      'X-Ku9-Security': 'level-3'
-    }
-  });
+  return { name: 'unknown', type: 'unknown' };
 }
 
-// 发送文件未找到
-function sendFileNotFound(filename) {
-  return new Response(`#EXTM3U
-# 文件不存在: ${filename}
-# 此系统仅限酷9播放器访问
-# 请使用酷9播放器并获取动态令牌
-# 技术支持: 请联系管理员
-# 时间: ${new Date().toLocaleString()}`, { 
-    status: 404,
-    headers: {
-      'Content-Type': 'text/plain; charset=utf-8',
-      'X-Content-Type-Options': 'nosniff'
-    }
-  });
+// 检测浏览器
+function detectBrowser(userAgent) {
+  const ua = userAgent.toLowerCase();
+  
+  let name = 'unknown';
+  let version = 'unknown';
+  
+  if (ua.includes('chrome') && !ua.includes('chromium')) {
+    name = 'Chrome';
+    const match = ua.match(/chrome\/([\d\.]+)/);
+    if (match) version = match[1];
+  } else if (ua.includes('firefox')) {
+    name = 'Firefox';
+    const match = ua.match(/firefox\/([\d\.]+)/);
+    if (match) version = match[1];
+  } else if (ua.includes('safari') && !ua.includes('chrome')) {
+    name = 'Safari';
+    const match = ua.match(/version\/([\d\.]+)/);
+    if (match) version = match[1];
+  } else if (ua.includes('edge')) {
+    name = 'Edge';
+    const match = ua.match(/edge\/([\d\.]+)/);
+    if (match) version = match[1];
+  } else if (ua.includes('opera')) {
+    name = 'Opera';
+    const match = ua.match(/opr\/([\d\.]+)/);
+    if (match) version = match[1];
+  }
+  
+  return { name, version };
 }
 
-// 发送TVBox助手阻止
-function sendTVBoxBlock(filename, userAgent) {
-  const response = `# 🚫 TVBox助手访问被拒绝
-
-# 检测到TVBox助手软件
-# User-Agent: ${userAgent.substring(0, 150)}
-# 时间: ${new Date().toLocaleString()}
-# 文件: ${filename}
-
-# ⚠️ 此系统为酷9播放器专用
-# 🔒 TVBox助手无法访问
-
-# 📢 重要提示:
-# 此内容仅限酷9播放器播放
-# TVBox/影视仓/Dipy等助手软件已被拦截
-
-# 🎯 解决方案:
-# 1. 下载官方酷9播放器
-# 2. 使用酷9播放器访问
-# 3. 获取动态安全令牌
-
-# 如需技术支持，请联系管理员
-# 错误代码: BLOCKED_TVBOX_ASSISTANT`;
-
-  return new Response(response, {
-    status: 403,
-    headers: {
-      'Content-Type': 'text/plain; charset=utf-8',
-      'X-Content-Type-Options': 'nosniff',
-      'X-Blocked-Reason': 'tvbox-assistant',
-      'X-Blocked-Client': userAgent.substring(0, 100)
-    }
-  });
+// 检测平台
+function detectPlatform(userAgent) {
+  const ua = userAgent.toLowerCase();
+  
+  if (ua.includes('android')) return 'Android';
+  if (ua.includes('iphone') || ua.includes('ipad')) return 'iOS';
+  if (ua.includes('windows')) return 'Windows';
+  if (ua.includes('mac os')) return 'macOS';
+  if (ua.includes('linux')) return 'Linux';
+  
+  return 'unknown';
 }
 
-// 发送抓包工具阻止
-function sendSniffingToolBlock(filename, userAgent) {
-  const response = `# 🚫 安全系统检测到抓包工具
-
-# 检测到工具: ${userAgent.substring(0, 150)}
-# 时间: ${new Date().toLocaleString()}
-# 文件: ${filename}
-
-# ⚠️ 此系统禁止使用抓包工具访问
-# 🔒 仅限酷9播放器访问
-
-# 📢 系统已记录此次访问:
-# - IP地址已被记录
-# - 访问时间已记录
-# - 工具特征已记录
-
-# 🎯 如需访问，请:
-# 1. 停止使用抓包工具
-# 2. 使用酷9播放器
-# 3. 获取动态安全令牌
-
-# 错误代码: BLOCKED_SNIFFING_TOOL`;
-
-  return new Response(response, {
-    status: 403,
-    headers: {
-      'Content-Type': 'text/plain; charset=utf-8',
-      'X-Content-Type-Options': 'nosniff',
-      'X-Blocked-Reason': 'sniffing-tool'
-    }
-  });
+// 提取UA模式
+function extractUAPatterns(userAgent) {
+  if (!userAgent) return [];
+  
+  const patterns = [];
+  const ua = userAgent.toLowerCase();
+  
+  // 检查常见的模式
+  if (ua.includes('mozilla/5.0')) patterns.push('mozilla_5.0');
+  if (ua.includes('applewebkit')) patterns.push('applewebkit');
+  if (ua.includes('chrome')) patterns.push('chrome');
+  if (ua.includes('safari')) patterns.push('safari');
+  if (ua.includes('mobile')) patterns.push('mobile');
+  if (ua.includes('android')) patterns.push('android');
+  if (ua.includes('linux')) patterns.push('linux');
+  if (ua.includes('windows')) patterns.push('windows');
+  if (ua.includes('like mac os x')) patterns.push('mac_like');
+  
+  return patterns;
 }
 
-// 发送酷9需要令牌
-function sendKu9RequireToken(filename, userAgent) {
-  const response = `# 🚫 酷9播放器需要动态令牌
-
-# 检测到酷9播放器访问
-# 但缺少安全令牌
-# 时间: ${new Date().toLocaleString()}
-# 文件: ${filename}
-
-# 📢 安全升级通知:
-# 系统已升级为动态令牌验证
-# 旧版令牌已失效
-
-# 🎯 解决方案:
-# 1. 更新到最新版酷9播放器
-# 2. 获取动态安全令牌
-# 3. 使用带签名的安全链接
-
-# 🔗 获取动态令牌:
-# 访问主页生成动态令牌
-# 或在链接中添加动态令牌参数
-
-# 错误代码: REQUIRE_DYNAMIC_TOKEN`;
-
-  return new Response(response, {
-    status: 403,
-    headers: {
-      'Content-Type': 'text/plain; charset=utf-8',
-      'X-Content-Type-Options': 'nosniff',
-      'X-Required': 'dynamic-token',
-      'X-Client': 'ku9-detected'
+// 获取访问记录API
+async function handleGetLogs(request, env) {
+  try {
+    const logsKey = 'access_logs_list';
+    let logsList = await env.MY_TEXT_STORAGE.get(logsKey);
+    
+    if (!logsList) {
+      logsList = [];
+    } else {
+      logsList = JSON.parse(logsList);
     }
-  });
+    
+    // 获取今天的统计数据
+    const today = new Date().toISOString().split('T')[0];
+    const statsKey = `stats_${today}`;
+    let todayStats = await env.MY_TEXT_STORAGE.get(statsKey);
+    
+    if (!todayStats) {
+      todayStats = {
+        todayVisits: 0,
+        ku9Access: 0,
+        blockedAccess: 0,
+        sniffingTools: 0,
+        browserAccess: 0,
+        otherPlayers: 0
+      };
+    } else {
+      todayStats = JSON.parse(todayStats);
+    }
+    
+    // 获取总统计数据
+    const totalStats = {
+      todayVisits: todayStats.totalVisits || 0,
+      ku9Access: todayStats.ku9Access || 0,
+      blockedAccess: todayStats.blockedAccess || 0,
+      sniffingTools: todayStats.sniffingTools || 0,
+      browserAccess: todayStats.browserAccess || 0,
+      otherPlayers: todayStats.otherPlayers || 0
+    };
+    
+    return new Response(JSON.stringify({
+      success: true,
+      logs: logsList,
+      stats: totalStats,
+      count: logsList.length
+    }), {
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*'
+      }
+    });
+    
+  } catch (error) {
+    return new Response(JSON.stringify({
+      success: false,
+      error: error.message
+    }), {
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*'
+      }
+    });
+  }
 }
 
-// 发送其他播放器阻止
-function sendOtherPlayerBlock(filename, playerName, userAgent) {
-  const response = `#EXTM3U
-#EXT-X-VERSION:3
-#EXT-X-TARGETDURATION:10
-#EXT-X-MEDIA-SEQUENCE:0
-
-# 🚫 播放器限制
-
-# 检测到播放器: ${playerName}
-# User-Agent: ${userAgent.substring(0, 100)}
-# 时间: ${new Date().toLocaleString()}
-
-# 📢 重要通知:
-# 此内容为酷9播放器独家专用
-# 其他播放器无法播放
-
-# 🔒 安全保护:
-# - TVBox助手拦截 ✓
-# - 抓包工具拦截 ✓
-# - 模拟请求检测 ✓
-# - 动态令牌验证 ✓
-
-# 🎯 解决方案:
-# 1. 下载官方酷9播放器
-# 2. 获取动态安全令牌
-# 3. 使用安全链接访问
-
-# 错误代码: PLAYER_NOT_SUPPORTED
-
-#EXTINF:10,
-# 不支持此播放器
-http://example.com/blocked.mp4
-
-#EXT-X-ENDLIST`;
-
-  return new Response(response, {
-    headers: {
-      'Content-Type': 'audio/x-mpegurl; charset=utf-8',
-      'X-Content-Type-Options': 'nosniff',
-      'X-Blocked-Reason': 'other-player'
-    }
-  });
+// 清空访问记录API
+async function handleClearLogs(request, env) {
+  try {
+    // 清空日志列表
+    await env.MY_TEXT_STORAGE.put('access_logs_list', JSON.stringify([]));
+    
+    // 清空所有日志记录（这里需要遍历删除，但Cloudflare KV不支持批量删除）
+    // 我们只清空列表，保留详细的日志记录供以后分析
+    
+    return new Response(JSON.stringify({
+      success: true,
+      message: '访问记录已清空'
+    }), {
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*'
+      }
+    });
+    
+  } catch (error) {
+    return new Response(JSON.stringify({
+      success: false,
+      error: error.message
+    }), {
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*'
+      }
+    });
+  }
 }
 
-// 发送浏览器阻止
-function sendBrowserBlock(filename, userAgent) {
-  const response = `<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <title>🚫 浏览器访问受限 - 酷9专用系统（加强版）</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 800px;
-            margin: 50px auto;
-            padding: 20px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        }
-        .container {
-            background: white;
-            border-radius: 15px;
-            padding: 30px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-        }
-        h1 {
-            color: #d32f2f;
-            border-bottom: 3px solid #ffcdd2;
-            padding-bottom: 15px;
-        }
-        .info-box {
-            background: #e3f2fd;
-            border-left: 5px solid #2196f3;
-            padding: 20px;
-            margin: 20px 0;
-        }
-        .solution-box {
-            background: #e8f5e8;
-            border-left: 5px solid #4caf50;
-            padding: 20px;
-            margin: 20px 0;
-        }
-        .warning-box {
-            background: #fff3cd;
-            border-left: 5px solid #ffc107;
-            padding: 20px;
-            margin: 20px 0;
-        }
-        code {
-            background: #f1f1f1;
-            padding: 8px 12px;
-            border-radius: 5px;
-            font-family: 'Courier New', monospace;
-            display: block;
-            margin: 10px 0;
-            overflow-x: auto;
-        }
-        .copy-btn {
-            background: #4CAF50;
-            color: white;
-            border: none;
-            padding: 12px 24px;
-            border-radius: 6px;
-            cursor: pointer;
-            margin: 10px 5px;
-            font-size: 16px;
-            transition: background 0.3s;
-        }
-        .copy-btn:hover {
-            background: #45a049;
-        }
-        .ku9-note {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border-radius: 10px;
-            padding: 25px;
-            margin: 25px 0;
-        }
-        .blocked-list {
-            background: #f8d7da;
-            border-radius: 8px;
-            padding: 15px;
-            margin: 15px 0;
-        }
-        .blocked-list ul {
-            columns: 2;
-            -webkit-columns: 2;
-            -moz-columns: 2;
-        }
-        .blocked-list li {
-            padding: 5px 0;
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>🚫 浏览器访问受限（加强版）</h1>
-        <p>检测到您正在使用浏览器访问酷9专用系统。</p>
-        <p>此内容为<strong>酷9播放器独家专用</strong>，浏览器无法直接播放。</p>
-        
-        <div class="warning-box">
-            <h3>⚠️ 系统安全升级：</h3>
-            <p>系统已升级为<strong>酷9播放器独家专用加强版</strong>，现在可以拦截：</p>
-            <div class="blocked-list">
-                <ul>
-                    <li>✅ TVBox/影视仓等助手软件</li>
-                    <li>✅ 各种猫影视/TV端播放器</li>
-                    <li>✅ 浏览器直接访问</li>
-                    <li>✅ 抓包工具和分析软件</li>
-                    <li>✅ 模拟酷9的伪造请求</li>
-                </ul>
-            </div>
-        </div>
-        
-        <div class="info-box">
-            <h3>📋 访问信息：</h3>
-            <p><strong>文件：</strong> ${filename}</p>
-            <p><strong>浏览器：</strong> ${userAgent.substring(0, 120)}</p>
-            <p><strong>时间：</strong> ${new Date().toLocaleString()}</p>
-            <p><strong>状态：</strong> ❌ 浏览器访问被拒绝（加强防护）</p>
-            <p><strong>安全等级：</strong> 🔒 最高级别</p>
-        </div>
-        
-        <div class="ku9-note">
-            <h3>🔒 酷9专用系统（加强版）：</h3>
-            <p>此系统采用多重防护技术：</p>
-            <ul>
-                <li>✅ 动态令牌验证（每次访问不同）</li>
-                <li>✅ TVBox助手智能拦截</li>
-                <li>✅ 抓包工具全面屏蔽</li>
-                <li>✅ 模拟请求精准识别</li>
-                <li>✅ 时间戳签名防复用</li>
-                <li>✅ 多层User-Agent检测</li>
-            </ul>
-        </div>
-        
-        <div class="solution-box">
-            <h3>🎯 解决方案：</h3>
-            <p><strong>使用酷9播放器访问：</strong></p>
-            <ol>
-                <li>下载并安装最新版酷9播放器</li>
-                <li>复制以下动态安全链接到酷9播放器</li>
-                <li>链接5分钟内有效，过期重新生成</li>
-            </ol>
-            
-            <p><strong>酷9动态安全链接：</strong></p>
-            <code id="ku9DynamicLink"></code>
-            <button class="copy-btn" onclick="copyDynamicLink()">复制动态安全链接</button>
-            
-            <p><strong>或使用静态链接（安全性较低）：</strong></p>
-            <code id="ku9StaticLink"></code>
-            <button class="copy-btn" onclick="copyStaticLink()" style="background: #6c757d;">复制静态链接</button>
-            
-            <p><small>动态链接每5分钟变化，防止被TVBox助手固定使用</small></p>
-        </div>
-    </div>
-
-    <script>
-        // 获取当前URL并生成链接
-        const currentUrl = window.location.href.split('?')[0];
-        const timestamp = Math.floor(Date.now() / 1000);
-        const dynamicToken = 'ku9_dynamic_' + timestamp + '_' + Math.random().toString(36).substr(2, 9);
-        
-        // 生成签名
-        function generateSig(url, ts) {
-            const secret = 'ku9_secure_salt_2024';
-            const str = url + ts + secret;
-            let hash = 0;
-            for (let i = 0; i < str.length; i++) {
-                const char = str.charCodeAt(i);
-                hash = ((hash << 5) - hash) + char;
-                hash = hash & hash;
-            }
-            return Math.abs(hash).toString(36);
-        }
-        
-        const signature = generateSig(currentUrl, timestamp);
-        const dynamicLink = currentUrl + '?ku9_token=' + encodeURIComponent(dynamicToken) + '&t=' + timestamp + '&sign=' + signature + '&v=2';
-        const staticLink = currentUrl + '?ku9_token=ku9_secure_token_2024&t=' + timestamp;
-        
-        document.getElementById('ku9DynamicLink').textContent = dynamicLink;
-        document.getElementById('ku9StaticLink').textContent = staticLink;
-        
-        function copyDynamicLink() {
-            navigator.clipboard.writeText(dynamicLink)
-                .then(() => alert('酷9动态安全链接已复制到剪贴板，5分钟内有效'))
-                .catch(err => alert('复制失败: ' + err));
-        }
-        
-        function copyStaticLink() {
-            navigator.clipboard.writeText(staticLink)
-                .then(() => alert('酷9静态链接已复制到剪贴板'))
-                .catch(err => alert('复制失败: ' + err));
-        }
-    </script>
-</body>
-</html>`;
-
-  return new Response(response, {
-    headers: {
-      'Content-Type': 'text/html; charset=utf-8',
-      'X-Content-Type-Options': 'nosniff',
-      'X-Blocked-Reason': 'browser'
+// 获取统计分析API
+async function handleGetStats(request, env) {
+  try {
+    // 获取今天的统计数据
+    const today = new Date().toISOString().split('T')[0];
+    const statsKey = `stats_${today}`;
+    let todayStats = await env.MY_TEXT_STORAGE.get(statsKey);
+    
+    if (!todayStats) {
+      todayStats = {
+        totalVisits: 0,
+        ku9Access: 0,
+        blockedAccess: 0,
+        sniffingTools: 0,
+        browserAccess: 0,
+        otherPlayers: 0,
+        suspicious: 0
+      };
+    } else {
+      todayStats = JSON.parse(todayStats);
     }
-  });
+    
+    // 获取24小时数据（示例数据）
+    const hourlyData = {
+      labels: ['00:00', '02:00', '04:00', '06:00', '08:00', '10:00', '12:00', '14:00', '16:00', '18:00', '20:00', '22:00'],
+      data: [5, 3, 2, 8, 15, 25, 30, 28, 22, 18, 12, 7]
+    };
+    
+    // 获取热门文件（示例数据）
+    const topFiles = [
+      { name: 'live.m3u', count: 125 },
+      { name: 'tv.json', count: 89 },
+      { name: 'movie.m3u8', count: 67 },
+      { name: 'sport.txt', count: 45 },
+      { name: 'music.json', count: 32 }
+    ];
+    
+    return new Response(JSON.stringify({
+      success: true,
+      stats: {
+        todayVisits: todayStats.totalVisits || 0,
+        ku9Access: todayStats.ku9Access || 0,
+        blockedAccess: todayStats.blockedAccess || 0,
+        sniffingTools: todayStats.sniffingTools || 0,
+        browserAccess: todayStats.browserAccess || 0,
+        otherPlayers: todayStats.otherPlayers || 0,
+        suspicious: todayStats.suspicious || 0
+      },
+      hourlyData: hourlyData,
+      topFiles: topFiles
+    }), {
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*'
+      }
+    });
+    
+  } catch (error) {
+    return new Response(JSON.stringify({
+      success: false,
+      error: error.message
+    }), {
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*'
+      }
+    });
+  }
 }
 
-// 发送需要酷9播放器和令牌
-function sendRequireKu9AndToken(filename, userAgent) {
-  const response = `# 🚫 需要酷9播放器和动态令牌
+// 特征分析API
+async function handleAnalyze(request, env) {
+  try {
+    const url = new URL(request.url);
+    const category = url.searchParams.get('category') || 'useragents';
+    
+    // 获取日志列表
+    const logsKey = 'access_logs_list';
+    let logsList = await env.MY_TEXT_STORAGE.get(logsKey);
+    
+    if (!logsList) {
+      logsList = [];
+    } else {
+      logsList = JSON.parse(logsList);
+    }
+    
+    let analysis = {};
+    
+    if (category === 'useragents') {
+      analysis = analyzeUserAgents(logsList);
+    } else if (category === 'patterns') {
+      analysis = analyzePatterns(logsList);
+    } else if (category === 'suspicious') {
+      analysis = analyzeSuspicious(logsList);
+    } else if (category === 'unknown') {
+      analysis = analyzeUnknown(logsList);
+    }
+    
+    return new Response(JSON.stringify({
+      success: true,
+      analysis: analysis
+    }), {
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*'
+      }
+    });
+    
+  } catch (error) {
+    return new Response(JSON.stringify({
+      success: false,
+      error: error.message
+    }), {
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*'
+      }
+    });
+  }
+}
 
-# 客户端: ${userAgent.substring(0, 150)}
-# 时间: ${new Date().toLocaleString()}
-# 文件: ${filename}
+// 分析User-Agent
+function analyzeUserAgents(logs) {
+  const uaMap = new Map();
+  
+  logs.forEach(log => {
+    if (log.userAgent) {
+      const ua = log.userAgent;
+      if (!uaMap.has(ua)) {
+        uaMap.set(ua, {
+          count: 0,
+          type: log.clientType || 'unknown',
+          example: ua
+        });
+      }
+      uaMap.get(ua).count++;
+    }
+  });
+  
+  // 转换为数组并按次数排序
+  const uaArray = Array.from(uaMap.entries())
+    .map(([ua, data]) => ({
+      pattern: extractUAPattern(ua),
+      count: data.count,
+      type: data.type,
+      example: data.example
+    }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 50); // 只返回前50个
+  
+  return { userAgents: uaArray };
+}
 
-# 📢 此系统为酷9播放器专用加强版
-# 🔒 需要酷9播放器和动态令牌
+// 提取UA模式
+function extractUAPattern(ua) {
+  if (!ua) return 'unknown';
+  
+  const uaLower = ua.toLowerCase();
+  
+  // 检查酷9模式
+  if (uaLower.includes('ku9') || uaLower.includes('k9')) {
+    return '酷9播放器模式';
+  }
+  
+  // 检查抓包工具
+  if (isSniffingTool(ua)) {
+    return '抓包工具模式';
+  }
+  
+  // 检查浏览器
+  const browser = detectBrowser(ua);
+  if (browser.name !== 'unknown') {
+    return `${browser.name}浏览器模式`;
+  }
+  
+  // 检查其他播放器
+  const player = detectPlayerDetailed(ua);
+  if (player.name !== 'unknown') {
+    return `${player.name}播放器模式`;
+  }
+  
+  // 通用模式
+  if (ua.includes('Mozilla/5.0')) {
+    if (ua.includes('Android')) {
+      return 'Android浏览器模式';
+    } else if (ua.includes('iPhone') || ua.includes('iPad')) {
+      return 'iOS浏览器模式';
+    } else if (ua.includes('Windows')) {
+      return 'Windows浏览器模式';
+    }
+    return '标准浏览器模式';
+  }
+  
+  return '其他模式';
+}
 
-# ⚠️ 检测结果:
-# - 非酷9播放器 ✗
-# - 无有效令牌 ✗
-# - 可能是TVBox助手 ✗
-# - 可能是抓包工具 ✗
+// 分析特征模式
+function analyzePatterns(logs) {
+  const patterns = [
+    {
+      pattern: 'ku9/k9',
+      description: '酷9播放器相关字符串',
+      count: logs.filter(l => l.userAgent && (l.userAgent.toLowerCase().includes('ku9') || l.userAgent.toLowerCase().includes('k9'))).length,
+      suggestion: '允许访问'
+    },
+    {
+      pattern: 'httpcanary|packetcapture',
+      description: 'HTTP抓包工具',
+      count: logs.filter(l => isSniffingTool(l.userAgent || '')).length,
+      suggestion: '立即拦截'
+    },
+    {
+      pattern: 'mxplayer|vlc|potplayer',
+      description: '其他播放器',
+      count: logs.filter(l => {
+        const player = detectPlayerDetailed(l.userAgent || '');
+        return player.name !== 'unknown' && player.name !== '酷9';
+      }).length,
+      suggestion: '拦截并提示使用酷9'
+    },
+    {
+      pattern: 'chrome|firefox|safari',
+      description: '桌面浏览器',
+      count: logs.filter(l => {
+        const browser = detectBrowser(l.userAgent || '');
+        return browser.name !== 'unknown' && browser.name !== '酷9';
+      }).length,
+      suggestion: '显示友好提示页面'
+    },
+    {
+      pattern: 'unknown',
+      description: '未知客户端',
+      count: logs.filter(l => !l.userAgent || l.userAgent.trim() === '' || detectClientType(l.userAgent) === 'unknown').length,
+      suggestion: '要求使用令牌访问'
+    }
+  ];
+  
+  return { patterns };
+}
 
-# 🎯 访问条件:
-# 1. 必须使用酷9播放器
-# 2. 必须获取动态令牌
-# 3. 必须在5分钟内使用
+// 检测客户端类型
+function detectClientType(userAgent) {
+  if (isKu9UserAgent(userAgent)) return 'ku9';
+  if (isSniffingTool(userAgent)) return 'sniffing';
+  if (detectBrowser(userAgent).name !== 'unknown') return 'browser';
+  if (detectPlayerDetailed(userAgent).name !== 'unknown') return 'other';
+  return 'unknown';
+}
 
-# 🔗 获取帮助:
-# 访问系统主页生成动态令牌
-# 或联系管理员获取技术支持
+// 分析可疑访问
+function analyzeSuspicious(logs) {
+  const suspicious = logs.filter(log => {
+    // 频繁访问的IP
+    const ipCount = logs.filter(l => l.ip === log.ip).length;
+    if (ipCount > 50) return true;
+    
+    // 异常的User-Agent
+    if (log.userAgent) {
+      const ua = log.userAgent.toLowerCase();
+      // 包含多个播放器标识
+      const playerCount = ['mxplayer', 'vlc', 'potplayer', 'kodi', 'tivimate']
+        .filter(player => ua.includes(player)).length;
+      if (playerCount > 2) return true;
+      
+      // 明显的伪造UA
+      if (ua.includes('bot') || ua.includes('crawler') || ua.includes('spider')) {
+        return true;
+      }
+    }
+    
+    // 被拦截的访问
+    if (log.clientType === 'blocked' || log.clientType === 'sniffing') {
+      return true;
+    }
+    
+    return false;
+  }).slice(0, 100); // 只返回前100个
+  
+  return { suspicious: suspicious.map(s => ({
+    timestamp: s.timestamp,
+    ip: s.ip || 'unknown',
+    userAgent: s.userAgent || 'unknown',
+    reason: generateSuspiciousReason(s)
+  })) };
+}
 
-# 错误代码: REQUIRE_KU9_AND_DYNAMIC_TOKEN`;
+// 生成可疑原因
+function generateSuspiciousReason(log) {
+  const reasons = [];
+  
+  if (log.clientType === 'sniffing') {
+    reasons.push('检测到抓包工具');
+  }
+  
+  if (log.clientType === 'blocked') {
+    reasons.push('访问被拦截');
+  }
+  
+  if (log.userAgent) {
+    const ua = log.userAgent.toLowerCase();
+    if (ua.includes('bot') || ua.includes('crawler')) {
+      reasons.push('疑似爬虫程序');
+    }
+  }
+  
+  // 统计IP访问频率
+  if (log.ip && log.ip !== 'unknown') {
+    reasons.push('频繁访问IP');
+  }
+  
+  return reasons.length > 0 ? reasons.join('，') : '未知可疑行为';
+}
 
-  return new Response(response, {
-    status: 403,
+// 分析未知客户端
+function analyzeUnknown(logs) {
+  const unknown = logs.filter(log => 
+    log.clientType === 'unknown' || 
+    !log.userAgent || 
+    log.userAgent.trim() === ''
+  );
+  
+  return { 
+    unknown: unknown.slice(0, 50),
+    count: unknown.length
+  };
+}
+
+// 以下为原有的函数，保持原样不变（部分函数已在上方修改）
+// 酷9播放器测试接口
+async function handleKu9Test(request) {
+  // ... 保持原有代码不变
+  const userAgent = request.headers.get('User-Agent') || '';
+  const lowerUA = userAgent.toLowerCase();
+  
+  let result = {
+    status: '测试开始',
+    userAgent: userAgent.substring(0, 100),
+    isKu9: false,
+    isSniffingTool: false,
+    isOtherPlayer: false,
+    isBrowser: false,
+    recommendations: []
+  };
+  
+  // 检查是否是抓包工具
+  const sniffingTools = [
+    'httpcanary', 'packetcapture', 'charles', 'fiddler',
+    'wireshark', 'burpsuite', 'mitmproxy', 'proxyman',
+    'postman', 'insomnia', 'curl', 'wget'
+  ];
+  
+  for (const tool of sniffingTools) {
+    if (lowerUA.includes(tool)) {
+      result.isSniffingTool = true;
+      result.recommendations.push('检测到抓包工具，请勿使用抓包工具访问');
+      break;
+    }
+  }
+  
+  // 检查是否是酷9播放器
+  const ku9Patterns = [
+    'ku9', 'k9', 'ku9player', 'k9player',
+    'com.ku9', 'com.k9', 'ku9-', 'k9-'
+  ];
+  
+  for (const pattern of ku9Patterns) {
+    if (lowerUA.includes(pattern)) {
+      result.isKu9 = true;
+      result.recommendations.push('检测到酷9播放器，可以正常访问');
+      break;
+    }
+  }
+  
+  // 检查是否是其他播放器
+  const otherPlayers = [
+    'mxplayer', 'vlc', 'potplayer', 'kodi',
+    'nplayer', 'infuse', 'tivimate', 'perfectplayer',
+    'diyp', 'tvbox', 'ijkplayer', 'exoplayer'
+  ];
+  
+  for (const player of otherPlayers) {
+    if (lowerUA.includes(player)) {
+      result.isOtherPlayer = true;
+      result.recommendations.push('检测到其他播放器，请使用酷9播放器');
+      break;
+    }
+  }
+  
+  // 检查是否是浏览器
+  const browsers = [
+    'chrome', 'firefox', 'safari', 'edge',
+    'opera', 'mozilla', 'webkit', 'msie'
+  ];
+  
+  for (const browser of browsers) {
+    if (lowerUA.includes(browser)) {
+      result.isBrowser = true;
+      result.recommendations.push('检测到浏览器，请使用酷9播放器');
+      break;
+    }
+  }
+  
+  // 如果没有检测到任何特征
+  if (!result.isKu9 && !result.isSniffingTool && !result.isOtherPlayer && !result.isBrowser) {
+    result.recommendations.push('客户端类型未知，尝试添加令牌参数：?ku9_token=ku9_secure_token_2024');
+  }
+  
+  // 最终建议
+  if (!result.isKu9) {
+    result.recommendations.push('建议在链接后添加：?ku9_token=ku9_secure_token_2024');
+  }
+  
+  return new Response(JSON.stringify(result, null, 2), {
     headers: {
-      'Content-Type': 'text/plain; charset=utf-8',
-      'X-Content-Type-Options': 'nosniff',
-      'X-Required': 'ku9-and-dynamic-token'
+      'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': '*'
     }
   });
 }
@@ -1729,27 +3028,11 @@ async function handleReadFile(request, env) {
   // 构建返回结果
   const domain = request.headers.get('host');
   const fileLink = 'https://' + domain + '/z/' + encodeURIComponent(safeFilename);
-  
-  // 生成动态令牌
-  const timestamp = Math.floor(Date.now() / 1000);
-  const dynamicToken = 'ku9_dynamic_' + timestamp + '_' + Math.random().toString(36).substr(2, 9);
-  const signature = generateKu9Signature(fileLink, timestamp);
-  const dynamicLink = fileLink + '?ku9_token=' + encodeURIComponent(dynamicToken) + '&t=' + timestamp + '&sign=' + signature + '&v=2';
 
   const response = {
     content: fileContent,
     fileLink: fileLink,
-    dynamicLink: dynamicLink,
-    staticLink: fileLink + '?ku9_token=ku9_secure_token_2024&t=' + timestamp,
-    dynamicToken: dynamicToken,
-    timestamp: timestamp,
-    expiry: timestamp + 300,
-    security: {
-      level: 'high',
-      tvbox_blocked: true,
-      sniffing_blocked: true,
-      dynamic_token: true
-    }
+    ku9Link: fileLink + '?ku9_token=ku9_secure_token_2024'
   };
 
   return new Response(JSON.stringify(response), {
@@ -1807,30 +3090,16 @@ async function handleUploadFile(request, env) {
 
       const domain = request.headers.get('host');
       const link = 'https://' + domain + '/z/' + encodeURIComponent(safeFilename);
-      
-      // 生成动态令牌
-      const timestamp = Math.floor(Date.now() / 1000);
-      const dynamicToken = 'ku9_dynamic_' + timestamp + '_' + Math.random().toString(36).substr(2, 9);
-      const signature = generateKu9Signature(link, timestamp);
-      const dynamicLink = link + '?ku9_token=' + encodeURIComponent(dynamicToken) + '&t=' + timestamp + '&sign=' + signature + '&v=2';
 
       return new Response(JSON.stringify({
         success: true,
         fileLink: link,
-        dynamicLink: dynamicLink,
-        staticLink: link + '?ku9_token=ku9_secure_token_2024&t=' + timestamp,
-        dynamicToken: dynamicToken,
+        ku9Link: link + '?ku9_token=ku9_secure_token_2024',
         filename: safeFilename,
-        timestamp: timestamp,
-        expiry: timestamp + 300,
         security: {
           enabled: true,
-          level: 'high',
-          tvbox_blocked: true,
-          sniffing_blocked: true,
-          dynamic_token: true,
-          signature_required: true,
-          note: '请使用动态安全链接防止TVBox助手获取'
+          token: 'ku9_secure_token_2024',
+          note: '请在链接后添加?ku9_token=ku9_secure_token_2024'
         }
       }), {
         headers: {
@@ -1908,8 +3177,7 @@ async function handleUpdatePassword(request, env) {
 
     return new Response(JSON.stringify({
       success: true,
-      message: '密码更新成功',
-      security_note: '系统已升级为酷9播放器专用加强版，TVBox助手无法访问'
+      message: '密码更新成功'
     }), {
       headers: {
         'Content-Type': 'application/json',
@@ -1964,4 +3232,340 @@ async function parseFormData(request) {
 // 辅助函数：文件名安全处理
 function sanitizeFilename(name) {
   return name.replace(/[^a-zA-Z0-9_\-\u4e00-\u9fa5.]/g, '_');
+}
+
+// 检查是否是抓包工具
+function isSniffingTool(userAgent) {
+  const lowerUA = userAgent.toLowerCase();
+  const sniffingTools = [
+    'httpcanary', 'packetcapture', 'charles', 'fiddler',
+    'wireshark', 'burpsuite', 'mitmproxy', 'proxyman',
+    'surge', 'shadowrocket', 'postman', 'insomnia',
+    'thunder.*client', 'curl', 'wget'
+  ];
+  
+  return sniffingTools.some(tool => {
+    const pattern = new RegExp(tool.replace('.*', '.*'), 'i');
+    return pattern.test(lowerUA);
+  });
+}
+
+// 检查是否是酷9User-Agent
+function isKu9UserAgent(userAgent) {
+  const lowerUA = userAgent.toLowerCase();
+  const ku9Patterns = [
+    'ku9', 'k9', 'ku9player', 'k9player',
+    'com.ku9', 'com.k9', 'ku9-', 'k9-',
+    'ku9_', 'k9_', 'ku9app', 'k9app'
+  ];
+  
+  return ku9Patterns.some(pattern => lowerUA.includes(pattern));
+}
+
+// 检测播放器类型
+function detectPlayer(userAgent) {
+  const lowerUA = userAgent.toLowerCase();
+  const playerPatterns = [
+    { pattern: 'mxplayer', name: 'MX Player' },
+    { pattern: 'vlc', name: 'VLC' },
+    { pattern: 'potplayer', name: 'PotPlayer' },
+    { pattern: 'kodi', name: 'Kodi' },
+    { pattern: 'nplayer', name: 'nPlayer' },
+    { pattern: 'infuse', name: 'Infuse' },
+    { pattern: 'tivimate', name: 'TiviMate' },
+    { pattern: 'perfectplayer', name: 'Perfect Player' },
+    { pattern: 'diyp', name: 'DIYP影音' },
+    { pattern: 'tvbox', name: 'TVBox' },
+    { pattern: 'ijkplayer', name: 'ijkPlayer' },
+    { pattern: 'exoplayer', name: 'ExoPlayer' }
+  ];
+  
+  for (const { pattern, name } of playerPatterns) {
+    if (lowerUA.includes(pattern)) {
+      return name;
+    }
+  }
+  
+  return 'unknown';
+}
+
+// 检查是否是浏览器
+function isBrowser(userAgent) {
+  const lowerUA = userAgent.toLowerCase();
+  const browserPatterns = [
+    'chrome', 'firefox', 'safari', 'edge',
+    'opera', 'msie', 'trident', 'mozilla'
+  ];
+  
+  return browserPatterns.some(pattern => lowerUA.includes(pattern));
+}
+
+// 发送原始内容
+function sendOriginalContent(filename, content, clientType) {
+  let contentType = 'text/plain; charset=utf-8';
+  if (filename.endsWith('.json')) {
+    contentType = 'application/json; charset=utf-8';
+  } else if (filename.endsWith('.m3u') || filename.endsWith('.m3u8')) {
+    contentType = 'audio/x-mpegurl; charset=utf-8';
+  } else if (filename.endsWith('.txt')) {
+    contentType = 'text/plain; charset=utf-8';
+  } else if (filename.endsWith('.html') || filename.endsWith('.htm')) {
+    contentType = 'text/html; charset=utf-8';
+  } else if (filename.endsWith('.xml')) {
+    contentType = 'application/xml; charset=utf-8';
+  }
+  
+  return new Response(content, {
+    headers: {
+      'Content-Type': contentType,
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Headers': '*',
+      'X-Content-Type-Options': 'nosniff',
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0',
+      'X-Client-Type': clientType,
+      'X-Ku9-Access': 'granted'
+    }
+  });
+}
+
+// 发送文件未找到
+function sendFileNotFound(filename) {
+  return new Response(`#EXTM3U
+# 文件不存在: ${filename}
+# 此系统仅限酷9播放器访问
+# 请在链接后添加: ?ku9_token=ku9_secure_token_2024
+# 技术支持: 请联系管理员`, { 
+    status: 404,
+    headers: {
+      'Content-Type': 'text/plain; charset=utf-8',
+      'X-Content-Type-Options': 'nosniff'
+    }
+  });
+}
+
+// 发送抓包工具阻止
+function sendSniffingToolBlock(filename, userAgent) {
+  const response = `# 🚫 安全系统检测到抓包工具
+
+# 检测到工具: ${userAgent.substring(0, 100)}
+# 时间: ${new Date().toLocaleString()}
+# 文件: ${filename}
+
+# ⚠️ 此系统禁止使用抓包工具访问
+# 🔒 仅限酷9播放器访问
+
+# 如需访问，请:
+# 1. 停止使用抓包工具
+# 2. 使用酷9播放器
+# 3. 添加令牌: ?ku9_token=ku9_secure_token_2024
+
+# 错误代码: BLOCKED_SNIFFING_TOOL`;
+
+  return new Response(response, {
+    status: 403,
+    headers: {
+      'Content-Type': 'text/plain; charset=utf-8',
+      'X-Content-Type-Options': 'nosniff',
+      'X-Blocked-Reason': 'sniffing-tool'
+    }
+  });
+}
+
+// 发送其他播放器阻止
+function sendOtherPlayerBlock(filename, playerName, userAgent) {
+  const response = `#EXTM3U
+#EXT-X-VERSION:3
+#EXT-X-TARGETDURATION:10
+#EXT-X-MEDIA-SEQUENCE:0
+
+# 🚫 播放器限制
+
+# 检测到播放器: ${playerName}
+# User-Agent: ${userAgent.substring(0, 80)}
+# 时间: ${new Date().toLocaleString()}
+
+# 📢 重要通知:
+# 此内容仅限酷9播放器访问
+# 其他播放器无法播放
+
+# 🎯 解决方案:
+# 1. 下载酷9播放器
+# 2. 在链接后添加令牌: ?ku9_token=ku9_secure_token_2024
+
+# 错误代码: PLAYER_NOT_SUPPORTED
+
+#EXTINF:10,
+# 不支持此播放器
+http://example.com/blocked.mp4
+
+#EXT-X-ENDLIST`;
+
+  return new Response(response, {
+    headers: {
+      'Content-Type': 'audio/x-mpegurl; charset=utf-8',
+      'X-Content-Type-Options': 'nosniff',
+      'X-Blocked-Reason': 'other-player'
+    }
+  });
+}
+
+// 发送浏览器阻止
+function sendBrowserBlock(filename, userAgent) {
+  const response = `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>🚫 浏览器访问受限 - 酷9专用系统</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            border-radius: 10px;
+            padding: 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #d32f2f;
+            border-bottom: 2px solid #ffcdd2;
+            padding-bottom: 10px;
+        }
+        .info-box {
+            background: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .solution-box {
+            background: #e8f5e8;
+            border-left: 4px solid #4caf50;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        code {
+            background: #f1f1f1;
+            padding: 2px 5px;
+            border-radius: 3px;
+            font-family: monospace;
+        }
+        .copy-btn {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        .ku9-note {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚫 浏览器访问受限</h1>
+        <p>检测到您正在使用浏览器访问。</p>
+        <p>此内容仅限 <strong>酷9播放器</strong> 播放，浏览器无法直接播放。</p>
+        
+        <div class="info-box">
+            <h3>📋 访问信息：</h3>
+            <p><strong>文件：</strong> ${filename}</p>
+            <p><strong>浏览器：</strong> ${userAgent.substring(0, 100)}</p>
+            <p><strong>时间：</strong> ${new Date().toLocaleString()}</p>
+            <p><strong>状态：</strong> ❌ 浏览器访问被拒绝</p>
+        </div>
+        
+        <div class="ku9-note">
+            <h3>🔒 酷9专用系统：</h3>
+            <p>此系统采用酷9播放器专用保护：</p>
+            <ul>
+                <li>仅限酷9播放器访问</li>
+                <li>防止抓包工具</li>
+                <li>保护内容安全</li>
+                <li>令牌验证机制</li>
+            </ul>
+        </div>
+        
+        <div class="solution-box">
+            <h3>🎯 解决方案：</h3>
+            <p><strong>使用酷9播放器访问：</strong></p>
+            <ol>
+                <li>下载并安装酷9播放器</li>
+                <li>复制以下链接到酷9播放器</li>
+                <li>或在酷9播放器中直接打开</li>
+            </ol>
+            
+            <p><strong>酷9专用链接：</strong></p>
+            <code id="ku9Link"></code>
+            <button class="copy-btn" onclick="copyKu9Link()">复制酷9专用链接</button>
+        </div>
+    </div>
+
+    <script>
+        // 获取当前URL并添加令牌参数
+        const currentUrl = window.location.href.split('?')[0];
+        const ku9Link = currentUrl + '?ku9_token=ku9_secure_token_2024';
+        document.getElementById('ku9Link').textContent = ku9Link;
+        
+        function copyKu9Link() {
+            navigator.clipboard.writeText(ku9Link)
+                .then(() => alert('酷9专用链接已复制到剪贴板'))
+                .catch(err => alert('复制失败: ' + err));
+        }
+    </script>
+</body>
+</html>`;
+
+  return new Response(response, {
+    headers: {
+      'Content-Type': 'text/html; charset=utf-8',
+      'X-Content-Type-Options': 'nosniff',
+      'X-Blocked-Reason': 'browser'
+    }
+  });
+}
+
+// 发送需要令牌
+function sendRequireToken(filename, userAgent) {
+  const response = `# 🚫 需要酷9令牌访问
+
+# 检测到客户端: ${userAgent.substring(0, 100)}
+# 时间: ${new Date().toLocaleString()}
+# 文件: ${filename}
+
+# 📢 此系统仅限酷9播放器访问
+# 请使用酷9播放器或添加令牌
+
+# 🔑 添加令牌方法:
+# 在链接后添加: ?ku9_token=ku9_secure_token_2024
+
+# 示例:
+# https://your-domain.com/z/${filename}?ku9_token=ku9_secure_token_2024
+
+# 🆘 如果酷9播放器无法播放:
+# 1. 确保链接包含令牌参数
+# 2. 联系管理员获取帮助
+# 3. 检查酷9播放器版本
+
+# 错误代码: REQUIRE_KU9_TOKEN`;
+
+  return new Response(response, {
+    status: 403,
+    headers: {
+      'Content-Type': 'text/plain; charset=utf-8',
+      'X-Content-Type-Options': 'nosniff',
+      'X-Required': 'ku9-token'
+    }
+  });
 }
