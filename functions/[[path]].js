@@ -360,7 +360,7 @@ async function handleManagementPage(request, env) {
     // 检查管理访问令牌
     const url = new URL(request.url);
     const managementToken = url.searchParams.get('manage_token');
-    const expectedToken = await env.MY_TEXT_STORAGE.get('management_token') || 'default_manage_token_2024';
+    const expectedToken = await env.MY_TEXT_STORAGE.get('management_token') || 'qq9602894';
     
     // 如果没有令牌或令牌错误，显示登录页面
     if (!managementToken || managementToken !== expectedToken) {
@@ -428,7 +428,7 @@ input[type="password"]{width:100%;padding:10px;border:1px solid #ddd;border-radi
   <div class="security-note">
     <h4>安全说明：</h4>
     <p>此页面用于文件管理，需要特殊令牌访问。</p>
-    <p>默认令牌：<code>default_manage_token_2024</code></p>
+    <p>默认令牌：<code>qq9602894</code></p>
     <p>首次使用后请及时修改令牌！</p>
   </div>
 </div>
@@ -1375,7 +1375,7 @@ async function handleSecureFileDownload(filename, request, env) {
     // 检查管理令牌 - 来自search.html的访问
     const url = new URL(request.url);
     const managementToken = url.searchParams.get('manage_token');
-    const expectedToken = await env.MY_TEXT_STORAGE.get('management_token') || 'default_manage_token_2024';
+    const expectedToken = await env.MY_TEXT_STORAGE.get('management_token') || 'qq9602894';
     
     // 如果有管理令牌且正确，返回原始内容（用于search.html管理页面）
     if (managementToken && managementToken === expectedToken) {
