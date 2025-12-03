@@ -1,4 +1,4 @@
-// Cloudflare Pages Functions - 增强安全文本存储系统 V3（修正版）
+// Cloudflare Pages Functions - 增强安全文本存储系统 V3（完整修正版）
 export async function onRequest(context) {
   const { request, env } = context;
   const url = new URL(request.url);
@@ -1380,7 +1380,7 @@ async function handleReadFile(request, env) {
   });
 }
 
-// 安全文件下载处理 - 修正版（酷9和管理页面可访问真实内容）
+// 安全文件下载处理 - 优化版（放宽酷9检测）
 async function handleSecureFileDownload(filename, request, env) {
   try {
     // 解码文件名
@@ -1409,77 +1409,66 @@ async function handleSecureFileDownload(filename, request, env) {
       return sendOriginalContent(safeFilename, content);
     }
 
-    // 检测客户端类型
+    // 检测客户端类型 - 放宽检测条件
     const userAgent = request.headers.get('User-Agent') || '';
-    const referer = request.headers.get('Referer') || '';
-    const accept = request.headers.get('Accept') || '';
-    
     const lowerUA = userAgent.toLowerCase();
     
-    // 宽松的酷9播放器检测 - 兼容更多版本
-    const ku9Keywords = [
-      'ku9', 'k9player', 'k9 player', '酷9', 'k9',
-      'com.ku9.player', 'com.k9.player', 'ku9player', 'k9player',
-      'android', 'okhttp', 'player', 'player/', 'm3u8', 'hls'
-    ];
-    
-    // 宽松检测：如果看起来像是播放器，就返回原始内容
-    // 优先级：明确的酷9标识 > 看起来像播放器 > 其他
-    
-    let isKu9Player = false;
-    let isLikelyPlayer = false;
-    
-    // 明确的酷9标识
-    const explicitKu9Markers = ['ku9', 'k9player', '酷9', 'com.ku9.player'];
-    for (const marker of explicitKu9Markers) {
-      if (lowerUA.includes(marker)) {
-        isKu9Player = true;
-        break;
-      }
-    }
-    
-    // 如果没有明确的酷9标识，但看起来像是播放器
-    if (!isKu9Player) {
-      // 播放器特征检测
-      const playerKeywords = ['player', 'okhttp', 'exoplayer', 'ijkplayer', 'vlc', 'ffmpeg'];
-      const mediaKeywords = ['.m3u', '.m3u8', 'hls', 'stream', 'video', 'audio'];
-      const mediaTypes = ['video/', 'audio/', 'application/vnd.apple.mpegurl'];
-      
-      // 检查是否请求媒体类型内容
-      const isMediaRequest = mediaTypes.some(type => accept.includes(type)) || 
-                            safeFilename.endsWith('.m3u') || 
-                            safeFilename.endsWith('.m3u8');
-      
-      // 检查User-Agent中的播放器特征
-      const hasPlayerKeyword = playerKeywords.some(keyword => lowerUA.includes(keyword));
-      
-      // 如果看起来像是媒体请求且有播放器特征，认为是播放器
-      if (isMediaRequest || hasPlayerKeyword) {
-        isLikelyPlayer = true;
-      }
-    }
-    
-    // 返回策略：酷9或看起来像播放器的客户端返回原始内容
-    if (isKu9Player || isLikelyPlayer) {
-      // 酷9播放器或看起来像播放器的客户端，返回原始内容
-      return sendOriginalContent(safeFilename, content);
-    }
-    
-    // 检测是否为抓包软件
+    // 1. 抓包工具检测（优先处理）
     const sniffingKeywords = [
       'httpcanary', 'packetcapture', 'charles', 'fiddler',
       'wireshark', 'burpsuite', 'mitmproxy', 'postman',
       'insomnia', 'curl', 'wget', 'httptoolkit'
     ];
     
-    const isSniffingTool = sniffingKeywords.some(keyword => lowerUA.toLowerCase().includes(keyword));
+    const isSniffingTool = sniffingKeywords.some(keyword => lowerUA.includes(keyword));
     
     if (isSniffingTool) {
       // 抓包软件，返回加密内容
       return sendEncryptedContent(safeFilename, content, true);
     }
     
-    // 其他客户端（浏览器等）返回加密内容
+    // 2. 放宽的播放器检测（包括酷9和其他常见播放器）
+    // 放宽检测条件：只要是看起来像播放器的客户端都允许访问
+    const playerKeywords = [
+      // 酷9相关
+      'ku9', 'k9', '酷9', 'k9player', 'ku9player',
+      // 常见播放器
+      'player', 'exoplayer', 'ijkplayer', 'vlc', 'ffmpeg',
+      'mx player', 'nplayer', 'mpv', 'potplayer',
+      // 流媒体相关
+      'hls', 'm3u8', 'm3u', 'stream', 'video', 'audio',
+      // 移动端
+      'android', 'okhttp', 'dalvik', 'mobile'
+    ];
+    
+    // 检测是否为播放器
+    const isPlayer = playerKeywords.some(keyword => lowerUA.includes(keyword));
+    
+    // 3. 文件类型检测
+    const isMediaFile = safeFilename.endsWith('.m3u') || 
+                       safeFilename.endsWith('.m3u8') || 
+                       safeFilename.endsWith('.mp4') ||
+                       safeFilename.endsWith('.ts') ||
+                       safeFilename.endsWith('.mp3') ||
+                       safeFilename.endsWith('.flv') ||
+                       safeFilename.endsWith('.txt') ||
+                       safeFilename.endsWith('.json');
+    
+    // 4. 接受头检测
+    const accept = request.headers.get('Accept') || '';
+    const isMediaRequest = accept.includes('video/') || 
+                          accept.includes('audio/') || 
+                          accept.includes('application/vnd.apple.mpegurl') ||
+                          accept.includes('application/json');
+    
+    // 返回策略：如果是播放器或媒体请求，返回原始内容
+    // 这样可以确保酷9和其他播放器都能正常播放
+    if (isPlayer || isMediaFile || isMediaRequest) {
+      // 播放器或媒体请求，返回原始内容
+      return sendOriginalContent(safeFilename, content);
+    }
+    
+    // 5. 其他情况（浏览器访问等）返回加密内容
     return sendEncryptedContent(safeFilename, content, false);
     
   } catch (error) {
