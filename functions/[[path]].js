@@ -1,4 +1,5 @@
-// Cloudflare Pages Functions - 增强安全文本存储系统 V2
+// Cloudflare Pages Functions - 增强安全文本存储系统 V2.1
+// 新增：访问日志记录功能
 export async function onRequest(context) {
   const { request, env } = context;
   const url = new URL(request.url);
@@ -29,9 +30,14 @@ export async function onRequest(context) {
       });
     }
 
-    // 搜索管理页面 - 修复：使用单独的安全验证
+    // 搜索管理页面
     if (pathname === '/search.html' || pathname === '/search.php') {
       return await handleManagementPage(request, env);
+    }
+
+    // 访问日志页面
+    if (pathname === '/logs.html' || pathname === '/logs.php') {
+      return await handleLogsPage(request, env);
     }
 
     // API: 读取文件 (read0.php)
@@ -54,7 +60,7 @@ export async function onRequest(context) {
       return await handleGetEncryptionKey(request, env);
     }
 
-    // 动态加密文件下载
+    // 动态加密文件下载 - 记录访问日志
     if (pathname.startsWith('/z/')) {
       const filename = pathname.substring(3);
       return await handleSecureFileDownload(filename, request, env);
@@ -80,7 +86,7 @@ export async function onRequest(context) {
   }
 }
 
-// 主页 HTML (index.html)
+// 主页 HTML (index.html) - 保持不变
 async function getIndexHTML() {
   return `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -204,7 +210,7 @@ async function getIndexHTML() {
         <p>蓝鸟、黄鸟、HTTPCanary、Fiddler、Charles、Wireshark、PacketCapture等</p>
     </div>
     
-    <p>可自定义扩展名，输入完整文件名如：<code>log.json</code>、<code>test.php</code>。〖<a href="./search.html"><b>接口搜索</b></a>〗</p><br>
+    <p>可自定义扩展名，输入完整文件名如：<code>log.json</code>、<code>test.php</code>。〖<a href="./search.html"><b>接口搜索</b></a>〗〖<a href="./logs.html"><b>访问日志</b></a>〗</p><br>
 
     <form id="uploadForm">
         <div style="display: flex;">源文：
@@ -359,7 +365,7 @@ async function getIndexHTML() {
 </html>`;
 }
 
-// 管理页面处理 - 修复：独立的安全验证
+// 管理页面处理
 async function handleManagementPage(request, env) {
   try {
     // 检查管理访问令牌
@@ -397,7 +403,512 @@ async function handleManagementPage(request, env) {
   }
 }
 
-// 管理登录页面
+// 访问日志页面处理
+async function handleLogsPage(request, env) {
+  try {
+    // 检查管理访问令牌
+    const url = new URL(request.url);
+    const managementToken = url.searchParams.get('manage_token');
+    const expectedToken = await env.MY_TEXT_STORAGE.get('management_token') || 'default_manage_token_2024';
+    
+    // 如果没有令牌或令牌错误，显示登录页面
+    if (!managementToken || managementToken !== expectedToken) {
+      return new Response(await getManagementLoginHTML(request), {
+        headers: { 
+          'content-type': 'text/html;charset=UTF-8',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'X-Content-Type-Options': 'nosniff'
+        },
+      });
+    }
+    
+    // 获取日志列表
+    const formData = await parseFormData(request);
+    const page = parseInt(formData.page) || 1;
+    const pageSize = parseInt(formData.page_size) || 50;
+    const filterType = formData.filter_type || 'all';
+    const filterValue = formData.filter_value || '';
+    
+    // 获取所有日志
+    const allLogs = await env.MY_TEXT_STORAGE.list({ prefix: 'log_' });
+    const logs = [];
+    
+    for (const key of allLogs.keys) {
+      try {
+        const logData = await env.MY_TEXT_STORAGE.get(key.name);
+        if (logData) {
+          const log = JSON.parse(logData);
+          log.id = key.name.substring(4); // 移除'log_'前缀
+          
+          // 应用过滤器
+          let includeLog = true;
+          
+          if (filterType !== 'all' && filterValue) {
+            if (filterType === 'filename' && !log.filename.includes(filterValue)) {
+              includeLog = false;
+            } else if (filterType === 'user_agent' && !log.userAgent.includes(filterValue)) {
+              includeLog = false;
+            } else if (filterType === 'ip' && !log.ip.includes(filterValue)) {
+              includeLog = false;
+            } else if (filterType === 'status' && !log.status.includes(filterValue)) {
+              includeLog = false;
+            }
+          }
+          
+          if (includeLog) {
+            logs.push(log);
+          }
+        }
+      } catch (error) {
+        console.error('解析日志失败:', key.name, error);
+      }
+    }
+    
+    // 按时间倒序排序
+    logs.sort((a, b) => b.timestamp - a.timestamp);
+    
+    // 分页
+    const totalLogs = logs.length;
+    const totalPages = Math.ceil(totalLogs / pageSize);
+    const startIndex = (page - 1) * pageSize;
+    const endIndex = Math.min(startIndex + pageSize, totalLogs);
+    const paginatedLogs = logs.slice(startIndex, endIndex);
+    
+    // 统计数据
+    const stats = {
+      total: totalLogs,
+      today: logs.filter(log => {
+        const logDate = new Date(log.timestamp);
+        const today = new Date();
+        return logDate.toDateString() === today.toDateString();
+      }).length,
+      allowed: logs.filter(log => log.status === 'allowed').length,
+      blocked: logs.filter(log => log.status === 'blocked').length,
+      uniqueUserAgents: [...new Set(logs.map(log => log.userAgent))].length,
+      uniqueIPs: [...new Set(logs.map(log => log.ip))].length
+    };
+    
+    // 显示日志页面
+    return new Response(await getLogsHTML(paginatedLogs, page, totalPages, stats, filterType, filterValue, managementToken), {
+      headers: { 
+        'content-type': 'text/html;charset=UTF-8',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'X-Content-Type-Options': 'nosniff'
+      },
+    });
+  } catch (error) {
+    return new Response(`日志页面错误: ${error.message}`, { 
+      status: 500,
+      headers: {
+        'Content-Type': 'text/plain; charset=utf-8',
+        'X-Content-Type-Options': 'nosniff'
+      }
+    });
+  }
+}
+
+// 访问日志页面 HTML
+async function getLogsHTML(logs, currentPage, totalPages, stats, filterType, filterValue, managementToken) {
+  // 生成日志表格行
+  let logsTableHTML = '';
+  
+  if (logs.length > 0) {
+    for (const log of logs) {
+      const time = new Date(log.timestamp).toLocaleString('zh-CN', {
+        year: 'numeric', month: '2-digit', day: '2-digit', 
+        hour: '2-digit', minute: '2-digit', second: '2-digit'
+      }).replace(/\//g, '.');
+      
+      const statusClass = log.status === 'allowed' ? 'status-allowed' : 'status-blocked';
+      const statusText = log.status === 'allowed' ? '✅ 允许' : '❌ 阻止';
+      
+      // 提取播放器特征
+      const userAgent = log.userAgent || '';
+      let playerType = '未知';
+      if (userAgent.includes('tvbox') || userAgent.includes('tv-box')) {
+        playerType = 'TVBox';
+      } else if (userAgent.includes('ku9') || userAgent.includes('酷9')) {
+        playerType = '酷9';
+      } else if (userAgent.includes('kodi')) {
+        playerType = 'Kodi';
+      } else if (userAgent.includes('vlc')) {
+        playerType = 'VLC';
+      } else if (userAgent.includes('mozilla') || userAgent.includes('chrome')) {
+        playerType = '浏览器';
+      }
+      
+      logsTableHTML += `
+<tr>
+  <td>${time}</td>
+  <td><span class="${statusClass}">${statusText}</span></td>
+  <td><code>${log.filename || 'N/A'}</code></td>
+  <td>${log.ip || 'N/A'}</td>
+  <td><span class="player-type ${playerType.toLowerCase()}">${playerType}</span></td>
+  <td>
+    <div class="ua-preview" onclick="showUADetail('${log.id.replace(/'/g, "\\'")}')" title="点击查看完整UA">
+      ${userAgent.length > 50 ? userAgent.substring(0, 50) + '...' : userAgent}
+    </div>
+  </td>
+  <td>${log.reason || 'N/A'}</td>
+  <td>
+    <button class="action-btn detail-btn" onclick="showLogDetail('${log.id.replace(/'/g, "\\'")}')">详情</button>
+    <button class="action-btn copy-btn" onclick="copyUAToClipboard('${userAgent.replace(/'/g, "\\'")}')">复制UA</button>
+  </td>
+</tr>
+`;
+    }
+  } else {
+    logsTableHTML = '<tr><td colspan="8" style="text-align:center;padding:20px;">暂无访问日志</td></tr>';
+  }
+  
+  // 生成分页导航
+  let paginationHTML = '';
+  if (totalPages > 1) {
+    paginationHTML = '<div class="pagination">';
+    
+    // 上一页
+    if (currentPage > 1) {
+      paginationHTML += `<a href="?manage_token=${managementToken}&page=${currentPage - 1}&filter_type=${filterType}&filter_value=${encodeURIComponent(filterValue)}" class="page-link">上一页</a>`;
+    }
+    
+    // 页码
+    const startPage = Math.max(1, currentPage - 2);
+    const endPage = Math.min(totalPages, currentPage + 2);
+    
+    for (let i = startPage; i <= endPage; i++) {
+      if (i === currentPage) {
+        paginationHTML += `<span class="page-link current">${i}</span>`;
+      } else {
+        paginationHTML += `<a href="?manage_token=${managementToken}&page=${i}&filter_type=${filterType}&filter_value=${encodeURIComponent(filterValue)}" class="page-link">${i}</a>`;
+      }
+    }
+    
+    // 下一页
+    if (currentPage < totalPages) {
+      paginationHTML += `<a href="?manage_token=${managementToken}&page=${currentPage + 1}&filter_type=${filterType}&filter_value=${encodeURIComponent(filterValue)}" class="page-link">下一页</a>`;
+    }
+    
+    paginationHTML += '</div>';
+  }
+  
+  return `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>访问日志分析</title>
+<style>
+body{font-family:"Segoe UI",Tahoma,sans-serif;font-size:14px;color:#333;margin:0;padding:10px;background:#f5f5f5;}
+.logs-container{max-width:100%;margin:0 auto;}
+.back-link{display:inline-block;margin-bottom:15px;color:#4a6cf7;text-decoration:none;padding:6px 12px;background:white;border-radius:4px;border:1px solid #ddd;}
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:15px;margin-bottom:20px;}
+.stat-card{background:white;padding:15px;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.1);text-align:center;}
+.stat-card h3{margin:0 0 8px 0;font-size:14px;color:#666;}
+.stat-number{font-size:28px;font-weight:bold;color:#333;}
+.stat-number.total{color:#4a6cf7;}
+.stat-number.today{color:#28a745;}
+.stat-number.allowed{color:#5cb85c;}
+.stat-number.blocked{color:#d9534f;}
+.filters{background:white;padding:15px;border-radius:8px;margin-bottom:15px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+.filter-input{padding:6px 10px;border:1px solid #ddd;border-radius:4px;min-width:200px;}
+.filter-btn{background:#4a6cf7;color:white;border:none;padding:6px 15px;border-radius:4px;cursor:pointer;}
+.logs-table{width:100%;border-collapse:collapse;background:white;border-radius:8px;overflow:hidden;box-shadow:0 2px 4px rgba(0,0,0,0.1);}
+.logs-table th{background:#4a6cf7;color:white;padding:12px 8px;text-align:left;font-weight:normal;}
+.logs-table td{padding:8px;border-bottom:1px solid #eee;}
+.logs-table tr:hover{background:#f9f9f9;}
+.status-allowed{color:#5cb85c;font-weight:bold;}
+.status-blocked{color:#d9534f;font-weight:bold;}
+.player-type{display:inline-block;padding:2px 6px;border-radius:4px;font-size:12px;font-weight:bold;}
+.player-type.tvbox{background:#e3f2fd;color:#1976d2;}
+.player-type.酷9{background:#e8f5e9;color:#388e3c;}
+.player-type.kodi{background:#fff3e0;color:#f57c00;}
+.player-type.vlc{background:#f3e5f5;color:#7b1fa2;}
+.player-type.浏览器{background:#ffebee;color:#d32f2f;}
+.player-type.未知{background:#f5f5f5;color:#757575;}
+.ua-preview{padding:4px;background:#f9f9f9;border-radius:3px;cursor:pointer;max-width:300px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.ua-preview:hover{background:#e3f2fd;}
+.action-btn{padding:3px 8px;border:none;border-radius:3px;cursor:pointer;font-size:12px;margin:2px;}
+.detail-btn{background:#5bc0de;color:white;}
+.copy-btn{background:#5cb85c;color:white;}
+.pagination{margin-top:20px;text-align:center;}
+.page-link{display:inline-block;padding:6px 12px;margin:0 2px;border:1px solid #ddd;border-radius:4px;text-decoration:none;color:#333;}
+.page-link:hover{background:#f0f0f0;}
+.page-link.current{background:#4a6cf7;color:white;border-color:#4a6cf7;}
+.modal{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:1000;}
+.modal-content{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:white;padding:20px;border-radius:8px;max-width:800px;width:90%;max-height:80%;overflow:auto;}
+.modal-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:15px;border-bottom:1px solid #eee;padding-bottom:10px;}
+.modal-title{margin:0;color:#333;}
+.close-btn{background:none;border:none;font-size:20px;cursor:pointer;color:#999;}
+.close-btn:hover{color:#333;}
+.log-detail{font-family:monospace;background:#f8f9fa;padding:10px;border-radius:4px;overflow:auto;max-height:400px;}
+.ua-signature{margin-top:15px;padding:10px;background:#e3f2fd;border-radius:4px;}
+.signature-title{font-weight:bold;margin-bottom:5px;color:#1976d2;}
+.clear-logs-btn{background:#d9534f;color:white;border:none;padding:8px 15px;border-radius:4px;cursor:pointer;margin-left:10px;}
+.clear-logs-btn:hover{background:#c9302c;}
+.export-btn{background:#5cb85c;color:white;border:none;padding:8px 15px;border-radius:4px;cursor:pointer;margin-left:10px;}
+.export-btn:hover{background:#4cae4c;}
+</style>
+</head>
+
+<body>
+<div class="logs-container">
+  <a href="./search.html?manage_token=${managementToken}" class="back-link">← 返回管理页面</a>
+  
+  <div class="stats-grid">
+    <div class="stat-card">
+      <h3>总访问量</h3>
+      <div class="stat-number total">${stats.total}</div>
+    </div>
+    <div class="stat-card">
+      <h3>今日访问</h3>
+      <div class="stat-number today">${stats.today}</div>
+    </div>
+    <div class="stat-card">
+      <h3>允许访问</h3>
+      <div class="stat-number allowed">${stats.allowed}</div>
+    </div>
+    <div class="stat-card">
+      <h3>阻止访问</h3>
+      <div class="stat-number blocked">${stats.blocked}</div>
+    </div>
+    <div class="stat-card">
+      <h3>不同UA</h3>
+      <div class="stat-number">${stats.uniqueUserAgents}</div>
+    </div>
+    <div class="stat-card">
+      <h3>不同IP</h3>
+      <div class="stat-number">${stats.uniqueIPs}</div>
+    </div>
+  </div>
+  
+  <div class="filters">
+    <form method="get" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+      <input type="hidden" name="manage_token" value="${managementToken}">
+      <select name="filter_type" class="filter-input">
+        <option value="all" ${filterType === 'all' ? 'selected' : ''}>所有类型</option>
+        <option value="filename" ${filterType === 'filename' ? 'selected' : ''}>文件名</option>
+        <option value="user_agent" ${filterType === 'user_agent' ? 'selected' : ''}>User-Agent</option>
+        <option value="ip" ${filterType === 'ip' ? 'selected' : ''}>IP地址</option>
+        <option value="status" ${filterType === 'status' ? 'selected' : ''}>访问状态</option>
+      </select>
+      <input type="text" name="filter_value" value="${filterValue}" placeholder="筛选条件..." class="filter-input">
+      <button type="submit" class="filter-btn">筛选</button>
+      <button type="button" class="export-btn" onclick="exportLogs()">导出日志</button>
+      <button type="button" class="clear-logs-btn" onclick="clearLogs()">清空日志</button>
+    </form>
+  </div>
+  
+  <table class="logs-table">
+    <thead>
+      <tr>
+        <th>时间</th>
+        <th>状态</th>
+        <th>文件名</th>
+        <th>IP地址</th>
+        <th>播放器类型</th>
+        <th>User-Agent (预览)</th>
+        <th>原因</th>
+        <th>操作</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${logsTableHTML}
+    </tbody>
+  </table>
+  
+  ${paginationHTML}
+</div>
+
+<div id="logDetailModal" class="modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3 class="modal-title">日志详情</h3>
+      <button class="close-btn" onclick="closeModal()">×</button>
+    </div>
+    <div id="logDetailContent" class="log-detail"></div>
+  </div>
+</div>
+
+<div id="uaDetailModal" class="modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3 class="modal-title">User-Agent 详情</h3>
+      <button class="close-btn" onclick="closeUAModal()">×</button>
+    </div>
+    <div id="uaDetailContent" class="log-detail"></div>
+    <div id="uaSignature" class="ua-signature">
+      <div class="signature-title">播放器特征码：</div>
+      <div id="signatureContent"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// 显示日志详情
+function showLogDetail(logId) {
+  fetch('/api_log_detail?manage_token=${managementToken}&log_id=' + encodeURIComponent(logId))
+    .then(response => response.json())
+    .then(data => {
+      const modal = document.getElementById('logDetailModal');
+      const content = document.getElementById('logDetailContent');
+      
+      let html = '';
+      if (data.log) {
+        const log = data.log;
+        html += \`<strong>时间：</strong> \${new Date(log.timestamp).toLocaleString()}<br><br>\`;
+        html += \`<strong>状态：</strong> \${log.status === 'allowed' ? '✅ 允许访问' : '❌ 阻止访问'}<br><br>\`;
+        html += \`<strong>文件名：</strong> \${log.filename || 'N/A'}<br><br>\`;
+        html += \`<strong>IP地址：</strong> \${log.ip || 'N/A'}<br><br>\`;
+        html += \`<strong>User-Agent：</strong><br>\${log.userAgent || 'N/A'}<br><br>\`;
+        html += \`<strong>访问原因：</strong> \${log.reason || 'N/A'}<br><br>\`;
+        html += \`<strong>Referer：</strong> \${log.referer || 'N/A'}<br><br>\`;
+        html += \`<strong>Accept：</strong> \${log.accept || 'N/A'}<br><br>\`;
+        html += \`<strong>完整日志：</strong><br><code>\${JSON.stringify(log, null, 2)}</code>\`;
+      } else {
+        html = '日志详情加载失败';
+      }
+      
+      content.innerHTML = html;
+      modal.style.display = 'block';
+    })
+    .catch(error => {
+      console.error('加载日志详情失败:', error);
+      alert('加载日志详情失败');
+    });
+}
+
+// 显示UA详情
+function showUADetail(logId) {
+  fetch('/api_ua_detail?manage_token=${managementToken}&log_id=' + encodeURIComponent(logId))
+    .then(response => response.json())
+    .then(data => {
+      const modal = document.getElementById('uaDetailModal');
+      const content = document.getElementById('uaDetailContent');
+      const signature = document.getElementById('signatureContent');
+      
+      if (data.log) {
+        const log = data.log;
+        const ua = log.userAgent || '';
+        
+        // 显示完整UA
+        content.textContent = ua;
+        
+        // 分析特征码
+        let signatureHTML = '';
+        
+        // 提取关键词
+        const keywords = [];
+        const uaLower = ua.toLowerCase();
+        
+        if (uaLower.includes('tvbox') || uaLower.includes('tv-box')) {
+          keywords.push('tvbox');
+          signatureHTML += '<div><strong>TVBox特征：</strong> 包含"tvbox"或"tv-box"关键词</div>';
+        }
+        
+        if (uaLower.includes('ku9') || uaLower.includes('酷9')) {
+          keywords.push('ku9');
+          signatureHTML += '<div><strong>酷9特征：</strong> 包含"ku9"或"酷9"关键词</div>';
+        }
+        
+        if (uaLower.includes('android')) {
+          keywords.push('android');
+          signatureHTML += '<div><strong>Android系统：</strong> 包含"android"关键词</div>';
+        }
+        
+        if (uaLower.includes('okhttp')) {
+          keywords.push('okhttp');
+          signatureHTML += '<div><strong>网络库：</strong> 使用OkHttp库</div>';
+        }
+        
+        if (uaLower.includes('curl')) {
+          keywords.push('curl');
+          signatureHTML += '<div><strong>工具：</strong> 使用cURL工具</div>';
+        }
+        
+        if (uaLower.includes('mozilla') || uaLower.includes('chrome')) {
+          keywords.push('browser');
+          signatureHTML += '<div><strong>浏览器特征：</strong> 包含浏览器标识</div>';
+        }
+        
+        // 提取版本号
+        const versionMatch = ua.match(/(\d+\.\d+(\.\d+)*)/);
+        if (versionMatch) {
+          signatureHTML += \`<div><strong>版本号：</strong> \${versionMatch[1]}</div>\`;
+        }
+        
+        if (signatureHTML === '') {
+          signatureHTML = '<div>未识别到明显的播放器特征</div>';
+        }
+        
+        signature.innerHTML = signatureHTML;
+        modal.style.display = 'block';
+      }
+    })
+    .catch(error => {
+      console.error('加载UA详情失败:', error);
+    });
+}
+
+// 关闭模态框
+function closeModal() {
+  document.getElementById('logDetailModal').style.display = 'none';
+}
+
+function closeUAModal() {
+  document.getElementById('uaDetailModal').style.display = 'none';
+}
+
+// 复制UA到剪贴板
+function copyUAToClipboard(ua) {
+  navigator.clipboard.writeText(ua)
+    .then(() => alert('User-Agent 已复制到剪贴板'))
+    .catch(err => alert('复制失败: ' + err));
+}
+
+// 导出日志
+function exportLogs() {
+  const filterType = '${filterType}';
+  const filterValue = '${filterValue}';
+  window.open('/api_export_logs?manage_token=${managementToken}&filter_type=' + encodeURIComponent(filterType) + '&filter_value=' + encodeURIComponent(filterValue), '_blank');
+}
+
+// 清空日志
+function clearLogs() {
+  if (confirm('确定要清空所有访问日志吗？此操作不可恢复！')) {
+    fetch('/api_clear_logs?manage_token=${managementToken}', { method: 'POST' })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          alert('日志已清空');
+          location.reload();
+        } else {
+          alert('清空失败: ' + (data.error || ''));
+        }
+      })
+      .catch(error => {
+        console.error('清空日志失败:', error);
+        alert('清空日志失败');
+      });
+  }
+}
+
+// 点击模态框外部关闭
+window.onclick = function(event) {
+  const logModal = document.getElementById('logDetailModal');
+  const uaModal = document.getElementById('uaDetailModal');
+  
+  if (event.target === logModal) {
+    logModal.style.display = 'none';
+  }
+  if (event.target === uaModal) {
+    uaModal.style.display = 'none';
+  }
+}
+</script>
+</body>
+</html>`;
+}
+
+// 管理登录页面 - 保持不变
 async function getManagementLoginHTML(request) {
   return `<!DOCTYPE html>
 <html>
@@ -453,7 +964,7 @@ function submitLogin() {
 </html>`;
 }
 
-// 搜索管理页面 HTML (search.php) - 修复版本
+// 搜索管理页面 HTML (search.php) - 保持不变
 async function getSearchHTML(request, env, managementToken) {
   const url = new URL(request.url);
   const formData = await parseFormData(request);
@@ -683,7 +1194,6 @@ async function getSearchHTML(request, env, managementToken) {
       const remarkPreview = currentRemark ? 
         (currentRemark.length > 20 ? currentRemark.substring(0, 20) + '...' : currentRemark) : '';
       
-      // 修复：添加管理令牌到所有链接
       fileListHTML += `
 <div class='file-item'>
   <input type='checkbox' name='selected_files[]' value='${r.name.replace(/"/g, '&quot;')}'>
@@ -823,6 +1333,7 @@ ${messages.map(function(msg) { return '<div class="message">' + msg + '</div>'; 
 <button type="button" class="search-btn" onclick="toggleSort('size')">大小排序 (${sortField==='size'?(sortOrder==='asc'?'↑':'↓'):'-'})</button>
 <button type="button" class="search-btn" onclick="editFile('', '${managementToken}')">🆕 新建文件</button>
 <button type="button" class="search-btn" onclick="uploadFiles('${managementToken}')">📤 上传文件</button>
+<button type="button" class="search-btn" onclick="location.href='logs.html?manage_token=${managementToken}'">📊 访问日志</button>
 </form>
 
 ${searchResultsHTML}
@@ -889,7 +1400,7 @@ function invertSelection(){
     });
 }
 
-// 弹窗编辑/新建 - 修复：添加管理令牌
+// 弹窗编辑/新建
 function editFile(filename, manageToken){
     if(filename === undefined) filename = '';
     
@@ -1141,7 +1652,7 @@ function editRemark(filename, currentRemark){
     overlay.onclick = function(){modal.remove(); overlay.remove();};
 }
 
-// 上传文件弹窗 - 修复：添加管理令牌
+// 上传文件弹窗
 function uploadFiles(manageToken){
     const existingModal = document.getElementById('uploadModal');
     const existingOverlay = document.getElementById('uploadOverlay');
@@ -1325,6 +1836,34 @@ function dynamicDecrypt(encrypted, timestamp) {
   return decrypted;
 }
 
+// 记录访问日志函数
+async function logAccess(env, request, filename, status, reason, userAgent, ip) {
+  try {
+    const timestamp = Date.now();
+    const logId = `log_${timestamp}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    const logData = {
+      timestamp,
+      filename,
+      status, // 'allowed' 或 'blocked'
+      reason,
+      userAgent: userAgent || request.headers.get('User-Agent') || 'unknown',
+      ip: ip || request.headers.get('CF-Connecting-IP') || request.headers.get('X-Forwarded-For') || 'unknown',
+      referer: request.headers.get('Referer') || '',
+      accept: request.headers.get('Accept') || '',
+      url: request.url,
+      method: request.method
+    };
+    
+    // 异步保存日志，不等待完成
+    env.MY_TEXT_STORAGE.put(logId, JSON.stringify(logData))
+      .catch(error => console.error('保存日志失败:', error));
+      
+  } catch (error) {
+    console.error('记录访问日志失败:', error);
+  }
+}
+
 // 读取文件处理 (read0.php)
 async function handleReadFile(request, env) {
   const url = new URL(request.url);
@@ -1406,7 +1945,7 @@ async function handleReadFile(request, env) {
   });
 }
 
-// 安全文件下载处理 - 增强版
+// 安全文件下载处理 - 增强版（增加日志记录）
 async function handleSecureFileDownload(filename, request, env) {
   try {
     // 解码文件名
@@ -1415,6 +1954,11 @@ async function handleSecureFileDownload(filename, request, env) {
     const content = await env.MY_TEXT_STORAGE.get('file_' + safeFilename);
     
     if (!content) {
+      // 记录文件不存在的访问
+      await logAccess(env, request, safeFilename, 'blocked', '文件不存在', 
+                     request.headers.get('User-Agent'), 
+                     request.headers.get('CF-Connecting-IP'));
+      
       return new Response('文件不存在', { 
         status: 404,
         headers: {
@@ -1431,7 +1975,11 @@ async function handleSecureFileDownload(filename, request, env) {
     const expectedToken = await env.MY_TEXT_STORAGE.get('management_token') || 'default_manage_token_2024';
     
     if (managementToken && managementToken === expectedToken) {
-      // 管理访问，返回原始内容
+      // 管理访问，记录日志并返回原始内容
+      await logAccess(env, request, safeFilename, 'allowed', '管理访问', 
+                     request.headers.get('User-Agent'), 
+                     request.headers.get('CF-Connecting-IP'));
+      
       let contentType = 'text/plain; charset=utf-8';
       if (safeFilename.endsWith('.json')) {
         contentType = 'application/json; charset=utf-8';
@@ -1544,8 +2092,11 @@ async function handleSecureFileDownload(filename, request, env) {
       }
     }
     
-    // 如果不允许访问，返回加密的错误页面
+    // 如果不允许访问，记录日志并返回加密的错误页面
     if (!allowAccess) {
+      await logAccess(env, request, safeFilename, 'blocked', reason, userAgent, 
+                     request.headers.get('CF-Connecting-IP'));
+      
       const timestamp = Math.floor(Date.now() / 60000);
       const errorMessage = `访问被拒绝 (${reason}) - ${new Date().toISOString()}`;
       const encryptedError = dynamicEncrypt(errorMessage, timestamp);
@@ -1561,6 +2112,10 @@ async function handleSecureFileDownload(filename, request, env) {
         }
       });
     }
+    
+    // 记录允许的访问日志
+    await logAccess(env, request, safeFilename, 'allowed', reason, userAgent, 
+                   request.headers.get('CF-Connecting-IP'));
     
     // 动态时间加密内容
     const timestamp = Math.floor(Date.now() / 60000);
@@ -1598,6 +2153,11 @@ async function handleSecureFileDownload(filename, request, env) {
     });
     
   } catch (error) {
+    // 记录错误日志
+    await logAccess(env, request, filename, 'error', error.message, 
+                   request.headers.get('User-Agent'), 
+                   request.headers.get('CF-Connecting-IP'));
+    
     return new Response(`下载错误: ${error.message}`, { 
       status: 500,
       headers: {
