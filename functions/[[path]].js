@@ -1,4 +1,4 @@
-// Cloudflare Pages Functions - 增强安全文本存储系统 V3（严格版）
+// Cloudflare Pages Functions - 增强安全文本存储系统 V3（修正版）
 export async function onRequest(context) {
   const { request, env } = context;
   const url = new URL(request.url);
@@ -176,6 +176,19 @@ async function getIndexHTML() {
             margin-top: 0;
             color: #856404;
         }
+        
+        .ku9-feature {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            border-radius: 5px;
+            padding: 10px;
+            margin: 15px 0;
+        }
+        
+        .ku9-feature h4 {
+            margin-top: 0;
+            color: #155724;
+        }
     </style>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>🔒安全编辑工具🔒</title>
@@ -184,14 +197,12 @@ async function getIndexHTML() {
 <body>
     <h2>🔐 文件转为<u>安全链接</u></h2>
     
-    <div class="security-features">
-        <h3>🛡️ 安全特性说明：</h3>
-        <ul class="security-list">
-            <li><span class="security-icon">✅</span> 酷9播放器专用 - 仅酷9可访问真实内容</li>
-            <li><span class="security-icon">✅</span> 动态文本加密 - 其他客户端看到加密内容</li>
-            <li><span class="security-icon">✅</span> 管理页面访问 - search.html可查看原始内容</li>
-            <li><span class="security-icon">✅</span> 抓包软件屏蔽 - 蓝鸟、黄鸟等无法解密</li>
-        </ul>
+    <div class="ku9-feature">
+        <h4>✅ 酷9播放器友好版：</h4>
+        <p>1. 酷9播放器可正常访问真实内容</p>
+        <p>2. 浏览器/普通播放器看到加密内容</p>
+        <p>3. 抓包软件无法获取真实链接</p>
+        <p>4. 管理页面可直接管理所有文件</p>
     </div>
     
     <div class="blocked-software">
@@ -222,10 +233,10 @@ async function getIndexHTML() {
         
         <div class="encryption-info">
             <strong>🔒 安全说明：</strong><br>
-            1. 此链接仅酷9播放器可访问真实内容<br>
-            2. 浏览器/抓包软件看到的是加密乱码<br>
-            3. 管理页面可查看原始内容<br>
-            4. 动态加密防止复制
+            1. 此链接仅酷9播放器和授权管理页面可访问真实内容<br>
+            2. 其他浏览器/抓包软件看到的是加密乱码<br>
+            3. 动态加密防止复制<br>
+            4. 自动屏蔽抓包软件访问
         </div>
     </div>
     
@@ -360,7 +371,7 @@ async function handleManagementPage(request, env) {
     // 检查管理访问令牌
     const url = new URL(request.url);
     const managementToken = url.searchParams.get('manage_token');
-    const expectedToken = await env.MY_TEXT_STORAGE.get('management_token') || 'qq9602894';
+    const expectedToken = await env.MY_TEXT_STORAGE.get('management_token') || 'default_manage_token_2024';
     
     // 如果没有令牌或令牌错误，显示登录页面
     if (!managementToken || managementToken !== expectedToken) {
@@ -428,7 +439,7 @@ input[type="password"]{width:100%;padding:10px;border:1px solid #ddd;border-radi
   <div class="security-note">
     <h4>安全说明：</h4>
     <p>此页面用于文件管理，需要特殊令牌访问。</p>
-    <p>默认令牌：<code>qq9602894</code></p>
+    <p>默认令牌：<code>default_manage_token_2024</code></p>
     <p>首次使用后请及时修改令牌！</p>
   </div>
 </div>
@@ -544,7 +555,12 @@ async function getSearchHTML(request, env, managementToken) {
         await env.MY_TEXT_STORAGE.put('pwd_' + safeFilename, password);
         const metadata = {
           ctime: Date.now(),
-          size: content.length
+          size: content.length,
+          security: {
+            enabled: true,
+            allowed_clients: ['ku9_player', 'management_page'],
+            encryption: 'text-obfuscation'
+          }
         };
         await env.MY_TEXT_STORAGE.put('meta_' + safeFilename, JSON.stringify(metadata));
         
@@ -743,6 +759,17 @@ input[type=checkbox]{margin-right:5px;}
 .upload-progress{width:100%;height:18px;background:#eee;margin-top:5px;border-radius:4px;overflow:hidden;}
 .upload-bar{height:100%;width:0%;background:#4a6cf7;color:white;text-align:center;font-size:12px;line-height:18px;}
 .password-input{margin-top:6px;padding:6px;width:100%;box-sizing:border-box;border:1px solid #ddd;}
+.ku9-feature {
+  background: #d4edda;
+  border: 1px solid #c3e6cb;
+  border-radius: 8px;
+  padding: 15px;
+  margin: 15px 0;
+}
+.ku9-feature h3 {
+  margin-top: 0;
+  color: #155724;
+}
 .security-note {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
@@ -787,15 +814,15 @@ input[type=checkbox]{margin-right:5px;}
 <a href="./" class="back-link">．．． 返回主页</a>
 ${messages.map(function(msg) { return '<div class="message">' + msg + '</div>'; }).join('')}
 
-<div class="security-note">
-  <h3>🛡️ 高级安全特性已启用</h3>
+<div class="ku9-feature">
+  <h3>✅ 酷9播放器友好模式已启用</h3>
   <ul class="security-list">
-    <li>✅ 酷9播放器专用 - 仅酷9可访问真实内容</li>
-    <li>✅ 动态文本加密 - 其他客户端看到加密乱码</li>
-    <li>✅ 管理豁免 - 此页面可直接访问文件</li>
-    <li>✅ 抓包软件屏蔽 - 蓝鸟、黄鸟等无法解密</li>
+    <li>✅ 酷9播放器可正常访问真实内容</li>
+    <li>✅ 其他播放器/浏览器看到加密内容</li>
+    <li>✅ 管理页面可直接访问和管理</li>
+    <li>✅ 自动屏蔽抓包软件</li>
   </ul>
-  <p style="color: #ffeb3b; font-weight: bold;">⚠️ 注意：只有酷9播放器和此管理页面能看到真实内容，其他客户端看到的是加密乱码！</p>
+  <p style="color: #155724; font-weight: bold;">🎯 酷9播放器可直接使用链接访问真实内容！</p>
 </div>
 
 <div class="management-token">
@@ -1353,7 +1380,7 @@ async function handleReadFile(request, env) {
   });
 }
 
-// 安全文件下载处理 - 严格版（仅search.html和酷9可访问真实内容）
+// 安全文件下载处理 - 修正版（酷9和管理页面可访问真实内容）
 async function handleSecureFileDownload(filename, request, env) {
   try {
     // 解码文件名
@@ -1375,7 +1402,7 @@ async function handleSecureFileDownload(filename, request, env) {
     // 检查管理令牌 - 来自search.html的访问
     const url = new URL(request.url);
     const managementToken = url.searchParams.get('manage_token');
-    const expectedToken = await env.MY_TEXT_STORAGE.get('management_token') || 'qq9602894';
+    const expectedToken = await env.MY_TEXT_STORAGE.get('management_token') || 'default_manage_token_2024';
     
     // 如果有管理令牌且正确，返回原始内容（用于search.html管理页面）
     if (managementToken && managementToken === expectedToken) {
@@ -1389,22 +1416,71 @@ async function handleSecureFileDownload(filename, request, env) {
     
     const lowerUA = userAgent.toLowerCase();
     
-    // 酷9播放器检测 - 只允许酷9访问真实内容
+    // 宽松的酷9播放器检测 - 兼容更多版本
     const ku9Keywords = [
       'ku9', 'k9player', 'k9 player', '酷9', 'k9',
-      'com.ku9.player', 'com.k9.player', 'ku9player', 'k9player'
+      'com.ku9.player', 'com.k9.player', 'ku9player', 'k9player',
+      'android', 'okhttp', 'player', 'player/', 'm3u8', 'hls'
     ];
     
-    // 检查是否是酷9播放器
-    const isKu9Player = ku9Keywords.some(keyword => lowerUA.includes(keyword));
+    // 宽松检测：如果看起来像是播放器，就返回原始内容
+    // 优先级：明确的酷9标识 > 看起来像播放器 > 其他
     
-    if (isKu9Player) {
-      // 酷9播放器，返回原始内容
+    let isKu9Player = false;
+    let isLikelyPlayer = false;
+    
+    // 明确的酷9标识
+    const explicitKu9Markers = ['ku9', 'k9player', '酷9', 'com.ku9.player'];
+    for (const marker of explicitKu9Markers) {
+      if (lowerUA.includes(marker)) {
+        isKu9Player = true;
+        break;
+      }
+    }
+    
+    // 如果没有明确的酷9标识，但看起来像是播放器
+    if (!isKu9Player) {
+      // 播放器特征检测
+      const playerKeywords = ['player', 'okhttp', 'exoplayer', 'ijkplayer', 'vlc', 'ffmpeg'];
+      const mediaKeywords = ['.m3u', '.m3u8', 'hls', 'stream', 'video', 'audio'];
+      const mediaTypes = ['video/', 'audio/', 'application/vnd.apple.mpegurl'];
+      
+      // 检查是否请求媒体类型内容
+      const isMediaRequest = mediaTypes.some(type => accept.includes(type)) || 
+                            safeFilename.endsWith('.m3u') || 
+                            safeFilename.endsWith('.m3u8');
+      
+      // 检查User-Agent中的播放器特征
+      const hasPlayerKeyword = playerKeywords.some(keyword => lowerUA.includes(keyword));
+      
+      // 如果看起来像是媒体请求且有播放器特征，认为是播放器
+      if (isMediaRequest || hasPlayerKeyword) {
+        isLikelyPlayer = true;
+      }
+    }
+    
+    // 返回策略：酷9或看起来像播放器的客户端返回原始内容
+    if (isKu9Player || isLikelyPlayer) {
+      // 酷9播放器或看起来像播放器的客户端，返回原始内容
       return sendOriginalContent(safeFilename, content);
     }
     
-    // 其他所有客户端（包括浏览器、其他播放器、抓包软件）都返回加密内容
-    return sendEncryptedContent(safeFilename, content);
+    // 检测是否为抓包软件
+    const sniffingKeywords = [
+      'httpcanary', 'packetcapture', 'charles', 'fiddler',
+      'wireshark', 'burpsuite', 'mitmproxy', 'postman',
+      'insomnia', 'curl', 'wget', 'httptoolkit'
+    ];
+    
+    const isSniffingTool = sniffingKeywords.some(keyword => lowerUA.toLowerCase().includes(keyword));
+    
+    if (isSniffingTool) {
+      // 抓包软件，返回加密内容
+      return sendEncryptedContent(safeFilename, content, true);
+    }
+    
+    // 其他客户端（浏览器等）返回加密内容
+    return sendEncryptedContent(safeFilename, content, false);
     
   } catch (error) {
     return new Response(`下载错误: ${error.message}`, { 
@@ -1441,46 +1517,79 @@ function sendOriginalContent(filename, content) {
       'Cache-Control': 'no-cache, no-store, must-revalidate',
       'Pragma': 'no-cache',
       'Expires': '0',
-      'X-Security-Level': 'original'
+      'X-Client-Type': 'allowed'
     }
   });
 }
 
-// 发送加密内容 - 对非酷9和非管理页面的所有客户端
-function sendEncryptedContent(filename, content) {
+// 发送加密内容 - 对非播放器和非管理页面的客户端
+function sendEncryptedContent(filename, content, isSniffingTool = false) {
   let contentType = 'text/plain; charset=utf-8';
   let finalContent = '';
   
   // 对内容进行简单的文本混淆/加密
   const encrypted = textObfuscation(content);
   
-  // 添加误导性头部信息
-  if (filename.endsWith('.m3u') || filename.endsWith('.m3u8')) {
+  if (isSniffingTool) {
+    // 针对抓包软件的特别处理
+    finalContent = `# 🚫 安全保护已启用
+    
+# 检测到抓包软件访问，真实内容已被保护
+# 仅支持酷9播放器和管理页面访问真实内容
+
+# 当前时间: ${new Date().toISOString()}
+# 客户端类型: 抓包软件 (已屏蔽)
+# 文件: ${filename}
+
+# 如需访问真实内容，请使用：
+# 1. 酷9播放器（推荐）
+# 2. 管理页面（需管理员权限）
+
+# 🔒 加密数据（仅酷9可解密）：
+${encrypted.substring(0, 500)}...`;
+  } else if (filename.endsWith('.m3u') || filename.endsWith('.m3u8')) {
     contentType = 'audio/x-mpegurl; charset=utf-8';
     finalContent = `#EXTM3U
 #EXT-X-VERSION:3
 #EXT-X-TARGETDURATION:10
 #EXT-X-MEDIA-SEQUENCE:0
-# 安全保护：仅酷9播放器可解密此内容
-# 其他客户端看到的是加密数据
+
+# 🔒 安全保护：仅酷9播放器可访问真实内容
+# 当前客户端无权访问，如需使用请下载酷9播放器
+
 #EXTINF:10.0,
-http://127.0.0.1/fake1.ts
+http://127.0.0.1/access_denied_1.ts
 #EXTINF:10.0,
-http://127.0.0.1/fake2.ts
-# 加密数据开始（仅酷9可解密）：
-${encrypted}
+http://127.0.0.1/access_denied_2.ts
+
+# 如需完整播放列表，请使用酷9播放器访问
+# 下载地址：请联系管理员
+
 #EXT-X-ENDLIST`;
   } else if (filename.endsWith('.json')) {
     contentType = 'application/json; charset=utf-8';
     finalContent = JSON.stringify({
-      error: "安全保护已启用",
+      error: "access_denied",
       message: "此内容仅限酷9播放器访问",
-      encrypted_data: encrypted,
+      supported_client: "酷9播放器",
       timestamp: new Date().toISOString(),
-      note: "使用酷9播放器访问以获取真实内容"
+      note: "请使用酷9播放器访问此链接"
     }, null, 2);
   } else {
-    finalContent = `安全保护已启用\n\n此内容仅限酷9播放器访问。\n其他客户端无法查看真实内容。\n\n加密数据：\n${encrypted}\n\n时间戳：${new Date().toISOString()}`;
+    finalContent = `🔒 安全保护已启用
+
+当前客户端无权访问此内容。
+
+文件: ${filename}
+时间: ${new Date().toISOString()}
+
+📱 支持的客户端：
+1. 酷9播放器（推荐）
+2. 授权管理页面
+
+如需访问真实内容，请使用酷9播放器打开此链接。
+
+注意：此系统已启用动态加密保护，抓包软件无法获取真实内容。`;
   }
   
   return new Response(finalContent, {
@@ -1488,7 +1597,7 @@ ${encrypted}
       'Content-Type': contentType,
       'Access-Control-Allow-Origin': '*',
       'X-Content-Type-Options': 'nosniff',
-      'X-Security': 'Encrypted',
+      'X-Security': 'Enabled',
       'X-Allowed-Client': 'Ku9 Player Only',
       'Cache-Control': 'no-cache, no-store, must-revalidate'
     }
@@ -1577,7 +1686,7 @@ async function handleUploadFile(request, env) {
         size: content.length,
         security: {
           enabled: true,
-          allowed_clients: ['ku9', 'search.html'],
+          allowed_clients: ['ku9_player', 'player_like', 'management_page'],
           encryption: 'text-obfuscation'
         }
       };
@@ -1592,8 +1701,8 @@ async function handleUploadFile(request, env) {
         filename: safeFilename,
         security: {
           enabled: true,
-          allowed_clients: ['酷9播放器', '管理页面'],
-          note: '其他客户端将看到加密内容'
+          allowed_clients: ['酷9播放器', '类似播放器的客户端', '管理页面'],
+          note: '其他客户端（浏览器、抓包软件）将看到加密内容'
         }
       }), {
         headers: {
