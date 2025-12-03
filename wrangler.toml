@@ -4,5 +4,5 @@ pages_build_output_dir = "./public"
 
 [[kv_namespaces]]
 binding = "MY_TEXT_STORAGE"
-id = "6b92db64724c4875bac82ac1bb0dc837"  # 需要在Cloudflare中创建后替换
-preview_id = "6b92db64724c4875bac82ac1bb0dc837"
+id = "76cdf91ca032420780145b075edb99c2"  # 需要在Cloudflare中创建后替换
+preview_id = "76cdf91ca032420780145b075edb99c2"
