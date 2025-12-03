@@ -1,4 +1,4 @@
-// Cloudflare Pages Functions - 增强安全文本存储系统 V3（最终修正版）
+// Cloudflare Pages Functions - 增强安全文本存储系统 V3（酷9播放器修复版）
 export async function onRequest(context) {
   const { request, env } = context;
   const url = new URL(request.url);
@@ -234,7 +234,7 @@ async function getIndexHTML() {
         <div class="encryption-info">
             <strong>🔒 安全说明：</strong><br>
             1. 此链接仅酷9播放器和授权管理页面可访问真实内容<br>
-            2. 其他浏览器/抓包软件看到的是加密乱码<br>
+            2. 其他浏览器/普通播放器看到的是加密乱码<br>
             3. 动态加密防止复制<br>
             4. 自动屏蔽抓包软件访问
         </div>
@@ -1380,7 +1380,7 @@ async function handleReadFile(request, env) {
   });
 }
 
-// 安全文件下载处理 - 收紧检测条件
+// 安全文件下载处理 - 修复版：简化逻辑，确保酷9播放器正常访问
 async function handleSecureFileDownload(filename, request, env) {
   try {
     // 解码文件名
@@ -1399,71 +1399,61 @@ async function handleSecureFileDownload(filename, request, env) {
       });
     }
 
-    // 检查管理令牌 - 来自search.html的访问
+    // 1. 优先检查管理令牌 - 最高权限
     const url = new URL(request.url);
     const managementToken = url.searchParams.get('manage_token');
     const expectedToken = await env.MY_TEXT_STORAGE.get('management_token') || 'default_manage_token_2024';
-    
-    // 如果有管理令牌且正确，返回原始内容（用于search.html管理页面）
+
+    // 如果有正确管理令牌，返回原始内容
     if (managementToken && managementToken === expectedToken) {
       return sendOriginalContent(safeFilename, content);
     }
 
-    // 检测客户端类型 - 收紧检测条件
+    // 2. 检测客户端类型
     const userAgent = request.headers.get('User-Agent') || '';
     const lowerUA = userAgent.toLowerCase();
+
+    // 修复核心：简化客户端检测逻辑
+    let isAllowedClient = false;
+
+    // 检测条件1: 明确的酷9播放器标识
+    const ku9Keywords = ['ku9', 'k9', 'ku9player', 'k9player'];
+    // 检测条件2: 播放器常用库标识 (OkHttp)
+    const playerLibraryKeywords = ['okhttp', 'exoplayer', 'mediaplayer'];
     
-    // 1. 抓包工具检测（必须首先处理）
-    const sniffingKeywords = [
-      'httpcanary', 'packetcapture', 'charles', 'fiddler',
-      'wireshark', 'burpsuite', 'mitmproxy', 'postman',
-      'insomnia', 'curl', 'wget', 'httptoolkit'
-    ];
-    
-    const isSniffingTool = sniffingKeywords.some(keyword => lowerUA.includes(keyword));
-    
-    if (isSniffingTool) {
-      // 抓包软件，返回加密内容
-      return sendEncryptedContent(safeFilename, content, true);
-    }
-    
-    // 2. 严格的酷9播放器检测（只允许酷9）
-    // 现在只允许明确的酷9标识，其他播放器全部屏蔽
-    const ku9Keywords = [
-      'ku9player', 'k9player', 'ku9 player', 'k9 player',
-      'com.ku9.player', 'com.k9.player'
-    ];
-    
-    // 检测是否为酷9播放器
-    let isKu9Player = false;
+    // 主要检测逻辑：寻找酷9播放器的可靠特征
     for (const keyword of ku9Keywords) {
       if (lowerUA.includes(keyword)) {
-        isKu9Player = true;
+        isAllowedClient = true;
         break;
       }
     }
-    
-    // 如果没有明确的酷9标识，再检查一些更宽松但仍是酷9的特征
-    if (!isKu9Player) {
-      // 检查是否包含"ku9"或"k9"，并且看起来像Android应用
-      if ((lowerUA.includes('ku9') || lowerUA.includes('k9')) && 
-          (lowerUA.includes('android') || lowerUA.includes('dalvik'))) {
-        // 进一步确认：检查是否包含player相关字样
-        if (lowerUA.includes('player') || lowerUA.includes('player/') || 
-            lowerUA.includes('okhttp') || lowerUA.includes('exoplayer')) {
-          isKu9Player = true;
+
+    // 次要检测：如果是播放器相关应用（包含 OkHttp 等库）
+    if (!isAllowedClient) {
+      // 检查是否包含播放器库标识
+      const hasPlayerLib = playerLibraryKeywords.some(keyword => lowerUA.includes(keyword));
+      
+      // 放宽条件：如果看起来是播放器应用，并且包含 OkHttp，允许访问
+      if (hasPlayerLib && lowerUA.includes('okhttp')) {
+        // 额外的安全检查：确保不是明显的抓包工具
+        const sniffingTools = ['httpcanary', 'packetcapture', 'charles', 'fiddler', 'wireshark', 'burpsuite'];
+        const isSniffingTool = sniffingTools.some(tool => lowerUA.includes(tool));
+
+        if (!isSniffingTool) {
+          isAllowedClient = true;
         }
       }
     }
-    
-    // 3. 如果有明确的酷9标识，返回原始内容
-    if (isKu9Player) {
+
+    // 3. 根据检测结果返回内容
+    if (isAllowedClient) {
       return sendOriginalContent(safeFilename, content);
+    } else {
+      // 对于其他客户端，返回加密内容
+      return sendEncryptedContent(safeFilename, content, userAgent);
     }
-    
-    // 4. 其他客户端（包括其他播放器、浏览器、普通应用等）全部返回加密内容
-    return sendEncryptedContent(safeFilename, content, false);
-    
+
   } catch (error) {
     return new Response(`下载错误: ${error.message}`, { 
       status: 500,
@@ -1504,97 +1494,97 @@ function sendOriginalContent(filename, content) {
   });
 }
 
-// 发送加密内容 - 对所有非酷9和非管理页面的客户端
-function sendEncryptedContent(filename, content, isSniffingTool = false) {
+// 发送加密内容 - 增强版：提供更多调试信息
+function sendEncryptedContent(filename, content, userAgent) {
+  const clientIP = 'unknown';
+  
   let contentType = 'text/plain; charset=utf-8';
   let finalContent = '';
-  
+
   // 对内容进行简单的文本混淆/加密
   const encrypted = textObfuscation(content);
-  
-  if (isSniffingTool) {
-    // 针对抓包软件的特别处理
-    finalContent = `# 🚫 安全保护已启用
-    
-# 检测到抓包软件访问，真实内容已被保护
-# 仅支持酷9播放器和管理页面访问真实内容
 
-# 当前时间: ${new Date().toISOString()}
-# 客户端类型: 抓包软件 (已屏蔽)
-# 文件: ${filename}
-
-# 如需访问真实内容，请使用：
-# 1. 酷9播放器（推荐）
-# 2. 管理页面（需管理员权限）
-
-# 🔒 加密数据（仅酷9可解密）：
-${encrypted.substring(0, 500)}...`;
-  } else if (filename.endsWith('.m3u') || filename.endsWith('.m3u8')) {
+  // 根据文件类型返回不同的错误信息
+  if (filename.endsWith('.m3u') || filename.endsWith('.m3u8')) {
     contentType = 'audio/x-mpegurl; charset=utf-8';
     finalContent = `#EXTM3U
 #EXT-X-VERSION:3
 #EXT-X-TARGETDURATION:10
 #EXT-X-MEDIA-SEQUENCE:0
 
-# 🚫 安全保护：仅酷9播放器可访问真实内容
-# 当前客户端被识别为非酷9播放器，访问已被拒绝
+# 🔒 安全保护已启用 - 仅授权客户端可访问
+# 当前客户端未被识别为酷9播放器或授权管理端
 
-# 检测到的客户端信息：
-# User-Agent: 已屏蔽
-# 时间: ${new Date().toISOString()}
+# 📋 调试信息：
 # 文件: ${filename}
+# 时间: ${new Date().toISOString()}
+# User-Agent 摘要: ${userAgent.substring(0, 50)}...
+# 检测结果: 非酷9播放器
 
-# 如果您是酷9播放器但无法播放，请确保：
-# 1. 使用的是最新版酷9播放器
-# 2. User-Agent包含明确的酷9标识
+# 💡 解决方案：
+# 1. 确保使用最新版酷9播放器
+# 2. 检查播放器 User-Agent 是否包含 "ku9" 或 "k9"
+# 3. 联系管理员获取管理令牌
+# 4. 通过管理页面 (?manage_token=xxx) 访问
 
-# 如果您不是酷9播放器，请联系管理员获取授权
-
-# 错误代码: ACCESS_DENIED_NON_KU9_CLIENT
+# 访问状态: ❌ 拒绝访问
+# 错误代码: CLIENT_NOT_AUTHORIZED
 #EXT-X-ENDLIST`;
   } else if (filename.endsWith('.json')) {
     contentType = 'application/json; charset=utf-8';
     finalContent = JSON.stringify({
       error: "access_denied",
-      message: "此内容仅限酷9播放器访问",
-      code: "ACCESS_DENIED_NON_KU9_CLIENT",
+      message: "此内容仅限酷9播放器或授权管理端访问",
+      code: "CLIENT_NOT_AUTHORIZED",
       timestamp: new Date().toISOString(),
-      required_client: "酷9播放器",
-      note: "非酷9播放器的访问已被拒绝",
-      client_info: {
-        user_agent: "已屏蔽",
-        access_status: "denied"
-      }
+      required_client: "酷9播放器 或 管理令牌持有者",
+      debug_info: {
+        user_agent_preview: userAgent.substring(0, 100),
+        client_ip: clientIP,
+        access_status: "denied",
+        suggestion: "请检查 User-Agent 是否包含 'ku9' 或使用管理令牌访问"
+      },
+      note: "如需管理访问，请使用 ?manage_token=您的令牌"
     }, null, 2);
   } else {
-    finalContent = `🚫 安全保护已启用
+    finalContent = `🔒 安全保护已启用
 
-当前客户端无权访问此内容。
+🚫 访问被拒绝
 
-检测信息：
+📋 详细信息：
 - 文件: ${filename}
 - 时间: ${new Date().toISOString()}
-- 客户端类型: 非酷9播放器
-- User-Agent: 已屏蔽
+- 检测结果: 非酷9播放器/无管理令牌
 
-📱 支持的客户端：
-1. 酷9播放器（唯一支持）
-2. 授权管理页面（需管理令牌）
+🔍 原因分析：
+您的客户端未被识别为酷9播放器，也没有提供有效的管理令牌。
 
-错误代码: ACCESS_DENIED_NON_KU9_CLIENT
+💡 解决方法：
+1. 使用酷9播放器访问（确保 User-Agent 包含 "ku9"）
+2. 通过管理页面提供管理令牌访问
 
-注意：此系统已启用严格的客户端检测，只有酷9播放器可以访问真实内容。
-抓包软件和其他播放器已全部被屏蔽。`;
+📱 支持的客户端特征：
+- User-Agent 包含: ku9, k9, ku9player, k9player
+- 使用 OkHttp 库的播放器应用
+- 持有有效管理令牌的请求
+
+🔧 技术信息：
+检测到的 User-Agent 前100字符：
+${userAgent.substring(0, 100)}
+
+错误代码: CLIENT_NOT_AUTHORIZED
+状态: ❌ 拒绝访问`;
   }
-  
+
   return new Response(finalContent, {
     headers: {
       'Content-Type': contentType,
       'Access-Control-Allow-Origin': '*',
       'X-Content-Type-Options': 'nosniff',
       'X-Security': 'Enabled',
-      'X-Allowed-Client': 'Ku9 Player Only',
-      'X-Access-Denied-Reason': 'Non-Ku9 client detected',
+      'X-Allowed-Client': 'Ku9 Player / Management Token',
+      'X-Access-Denied-Reason': 'Client not recognized as Ku9 player',
+      'X-Detected-UA-Preview': userAgent.substring(0, 50),
       'Cache-Control': 'no-cache, no-store, must-revalidate'
     }
   });
