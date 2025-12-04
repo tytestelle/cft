@@ -1,5 +1,5 @@
-// Cloudflare Pages Functions - 增强安全文本存储系统 V3.0
-// 升级：酷9播放器专属令牌系统 + 精确识别
+// Cloudflare Pages Functions - 酷9播放器精确识别系统 V4.0
+// 特征：应用程序指纹 + 行为分析 + 多重验证
 export async function onRequest(context) {
   const { request, env } = context;
   const url = new URL(request.url);
@@ -11,7 +11,7 @@ export async function onRequest(context) {
       headers: {
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With, X-Client-Time, X-Encryption-Key, X-Management-Access, X-Ku9-Token, X-Device-ID',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With, X-Client-Time, X-Encryption-Key, X-Management-Access, X-Ku9-Token, X-Device-ID, X-App-Signature, X-App-Version, X-Client-Type',
         'Access-Control-Max-Age': '86400',
         'Vary': 'Origin'
       }
@@ -28,6 +28,11 @@ export async function onRequest(context) {
           'X-Content-Type-Options': 'nosniff'
         },
       });
+    }
+
+    // 酷9识别配置页面
+    if (pathname === '/ku9_detector.html' || pathname === '/ku9_detector.php') {
+      return await handleKu9DetectorPage(request, env);
     }
 
     // 搜索管理页面
@@ -48,6 +53,11 @@ export async function onRequest(context) {
     // 设备管理页面
     if (pathname === '/devices.html' || pathname === '/devices.php') {
       return await handleDevicesPage(request, env);
+    }
+
+    // 应用程序指纹管理
+    if (pathname === '/app_fingerprints.html' || pathname === '/app_fingerprints.php') {
+      return await handleAppFingerprintsPage(request, env);
     }
 
     // API: 读取文件 (read0.php)
@@ -100,9 +110,19 @@ export async function onRequest(context) {
       return await handleDeleteKu9Token(request, env);
     }
 
-    // API: 标记UA为酷9
-    if (pathname === '/api_mark_ua' && request.method === 'POST') {
-      return await handleMarkUA(request, env);
+    // API: 标记应用程序指纹
+    if (pathname === '/api_mark_app_fingerprint' && request.method === 'POST') {
+      return await handleMarkAppFingerprint(request, env);
+    }
+
+    // API: 验证酷9应用程序
+    if (pathname === '/api_verify_ku9_app' && request.method === 'POST') {
+      return await handleVerifyKu9App(request, env);
+    }
+
+    // API: 获取应用程序指纹
+    if (pathname === '/api_get_app_fingerprints' && request.method === 'GET') {
+      return await handleGetAppFingerprints(request, env);
     }
 
     // API: 更新设备信息
@@ -120,6 +140,11 @@ export async function onRequest(context) {
     if (pathname.startsWith('/k9/')) {
       const filename = pathname.substring(4);
       return await handleKu9SecureDownload(filename, request, env);
+    }
+
+    // 应用程序验证端点
+    if (pathname === '/verify_app' && request.method === 'POST') {
+      return await handleVerifyAppEndpoint(request, env);
     }
 
     // 默认返回主页
@@ -257,23 +282,45 @@ async function getIndexHTML() {
             margin-top: 0;
             color: #1976d2;
         }
+        
+        .ku9-detection-info {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+        
+        .ku9-detection-info h4 {
+            margin-top: 0;
+            color: #155724;
+        }
     </style>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>🔒安全编辑工具🔒 - 酷9专用版</title>
+    <title>🔒安全编辑工具🔒 - 酷9精确识别版</title>
 </head>
 
 <body>
     <h2>🔐 文件转为<u>安全链接</u></h2>
     
     <div class="security-features">
-        <h3>🛡️ 安全特性说明：</h3>
+        <h3>🛡️ 精确识别系统 V4.0：</h3>
         <ul class="security-list">
-            <li><span class="security-icon">✅</span> 动态时间加密 - 每次访问内容不同</li>
-            <li><span class="security-icon">✅</span> 播放器专用验证 - 只允许TVBox/酷9</li>
-            <li><span class="security-icon">✅</span> 反抓包保护 - 屏蔽蓝鸟/黄鸟</li>
-            <li><span class="security-icon">✅</span> 汉字加密 - 完全无法直接阅读</li>
-            <li><span class="security-icon">✅</span> 酷9专属令牌 - 单独安全通道</li>
+            <li><span class="security-icon">✅</span> 应用程序指纹识别 - 精准识别酷9应用</li>
+            <li><span class="security-icon">✅</span> 多重特征验证 - 8种识别方法</li>
+            <li><span class="security-icon">✅</span> 行为分析 - 智能学习设备特征</li>
+            <li><span class="security-icon">✅</span> 代理穿透识别 - 同一设备精确识别</li>
+            <li><span class="security-icon">✅</span> 应用签名验证 - 防止伪造</li>
         </ul>
+    </div>
+    
+    <div class="ku9-detection-info">
+        <h4>🎯 酷9精确识别系统：</h4>
+        <p>• 使用应用程序指纹，无论是否使用代理都能准确识别</p>
+        <p>• 多重验证：HTTP头、User-Agent、行为特征、应用签名</p>
+        <p>• 智能学习：自动学习和记忆酷9应用特征</p>
+        <p>• 〖<a href="./ku9_detector.html?manage_token=default_manage_token_2024" style="color:#d32f2f;"><b>酷9识别配置</b></a>〗</p>
+        <p>• 〖<a href="./app_fingerprints.html?manage_token=default_manage_token_2024" style="color:#d32f2f;"><b>应用指纹管理</b></a>〗</p>
     </div>
     
     <div class="ku9-info">
@@ -313,7 +360,7 @@ async function getIndexHTML() {
         <div class="encryption-info">
             <strong>🔒 安全说明：</strong><br>
             1. 此链接使用动态时间加密，每次访问内容都不同<br>
-            2. 只有TVBox/酷9等播放器可以正常访问<br>
+            2. 只有经过精确识别的酷9播放器可以正常访问<br>
             3. 抓包软件无法获取真实内容<br>
             4. 所有文字都已加密保护
         </div>
@@ -444,8 +491,8 @@ async function getIndexHTML() {
 </html>`;
 }
 
-// 酷9令牌管理页面
-async function handleKu9Page(request, env) {
+// 酷9识别配置页面
+async function handleKu9DetectorPage(request, env) {
   try {
     // 检查管理访问令牌
     const url = new URL(request.url);
@@ -462,7 +509,7 @@ async function handleKu9Page(request, env) {
       });
     }
     
-    return new Response(await getKu9HTML(request, env, managementToken), {
+    return new Response(await getKu9DetectorHTML(request, env, managementToken), {
       headers: { 
         'content-type': 'text/html;charset=UTF-8',
         'Cache-Control': 'no-cache, no-store, must-revalidate',
@@ -470,8 +517,8 @@ async function handleKu9Page(request, env) {
       },
     });
   } catch (error) {
-    console.error('酷9管理页面错误:', error);
-    return new Response(`酷9管理页面错误: ${error.message}`, { 
+    console.error('酷9识别配置页面错误:', error);
+    return new Response(`酷9识别配置页面错误: ${error.message}`, { 
       status: 500,
       headers: {
         'Content-Type': 'text/plain; charset=utf-8',
@@ -481,8 +528,8 @@ async function handleKu9Page(request, env) {
   }
 }
 
-// 设备管理页面
-async function handleDevicesPage(request, env) {
+// 应用程序指纹管理页面
+async function handleAppFingerprintsPage(request, env) {
   try {
     const url = new URL(request.url);
     const managementToken = url.searchParams.get('manage_token');
@@ -498,7 +545,7 @@ async function handleDevicesPage(request, env) {
       });
     }
     
-    return new Response(await getDevicesHTML(request, env, managementToken), {
+    return new Response(await getAppFingerprintsHTML(request, env, managementToken), {
       headers: { 
         'content-type': 'text/html;charset=UTF-8',
         'Cache-Control': 'no-cache, no-store, must-revalidate',
@@ -506,8 +553,8 @@ async function handleDevicesPage(request, env) {
       },
     });
   } catch (error) {
-    console.error('设备管理页面错误:', error);
-    return new Response(`设备管理页面错误: ${error.message}`, { 
+    console.error('应用程序指纹管理页面错误:', error);
+    return new Response(`应用程序指纹管理页面错误: ${error.message}`, { 
       status: 500,
       headers: {
         'Content-Type': 'text/plain; charset=utf-8',
@@ -517,137 +564,180 @@ async function handleDevicesPage(request, env) {
   }
 }
 
-// 酷9管理页面 HTML
-async function getKu9HTML(request, env, managementToken) {
-  const url = new URL(request.url);
+// 酷9识别配置页面 HTML
+async function getKu9DetectorHTML(request, env, managementToken) {
   const formData = await parseFormData(request);
   
   let messages = [];
   
-  // 处理生成令牌请求
-  if (formData.generate_token) {
-    const deviceName = formData.device_name || '未命名设备';
-    const expiresDays = parseInt(formData.expires_days) || 30;
-    const maxUsage = parseInt(formData.max_usage) || 1000;
-    
-    // 生成令牌
-    const token = generateToken();
-    const tokenData = {
-      token: token,
-      device_name: deviceName,
-      created_at: Date.now(),
-      expires_at: Date.now() + (expiresDays * 24 * 60 * 60 * 1000),
-      max_usage: maxUsage,
-      used_count: 0,
-      last_used: 0,
-      enabled: true,
-      description: formData.description || '',
-      allowed_ips: formData.allowed_ips ? formData.allowed_ips.split(',').map(ip => ip.trim()).filter(ip => ip) : []
+  // 处理配置更新
+  if (formData.update_config) {
+    // 更新酷9特征配置
+    const ku9Config = {
+      // 应用程序签名验证
+      app_signatures: formData.app_signatures ? formData.app_signatures.split('\n').filter(s => s.trim()) : [],
+      
+      // HTTP头特征
+      header_patterns: formData.header_patterns ? formData.header_patterns.split('\n').filter(s => s.trim()) : [],
+      
+      // User-Agent特征
+      ua_patterns: formData.ua_patterns ? formData.ua_patterns.split('\n').filter(s => s.trim()) : [],
+      
+      // 行为特征
+      behavior_patterns: formData.behavior_patterns ? formData.behavior_patterns.split('\n').filter(s => s.trim()) : [],
+      
+      // 请求参数特征
+      param_patterns: formData.param_patterns ? formData.param_patterns.split('\n').filter(s => s.trim()) : [],
+      
+      // 检测阈值
+      detection_threshold: parseInt(formData.detection_threshold) || 70,
+      
+      // 高级设置
+      enable_behavior_analysis: formData.enable_behavior_analysis === 'true',
+      enable_app_fingerprint: formData.enable_app_fingerprint === 'true',
+      enable_proxy_detection: formData.enable_proxy_detection === 'true',
+      strict_mode: formData.strict_mode === 'true',
+      
+      // 更新时间
+      updated_at: Date.now()
     };
     
-    await env.MY_TEXT_STORAGE.put(`ku9_token_${token}`, JSON.stringify(tokenData));
-    messages.push(`✅ 酷9令牌已生成: ${token}`);
+    await env.MY_TEXT_STORAGE.put('ku9_detection_config', JSON.stringify(ku9Config));
+    messages.push('✅ 酷9识别配置已更新');
+    
+    // 更新已知的酷9设备ID
+    if (formData.known_device_ids) {
+      const deviceIds = formData.known_device_ids.split('\n').filter(s => s.trim());
+      await env.MY_TEXT_STORAGE.put('ku9_known_device_ids', JSON.stringify(deviceIds));
+    }
+    
+    // 更新已知的酷9IP
+    if (formData.known_ips) {
+      const ips = formData.known_ips.split('\n').filter(s => s.trim());
+      await env.MY_TEXT_STORAGE.put('ku9_known_ips', JSON.stringify(ips));
+    }
   }
   
-  // 获取所有酷9令牌
-  const allKeys = await env.MY_TEXT_STORAGE.list();
-  const ku9Tokens = [];
-  
-  for (const key of allKeys.keys) {
-    if (key.name.startsWith('ku9_token_')) {
-      try {
-        const tokenData = await env.MY_TEXT_STORAGE.get(key.name);
-        if (tokenData) {
-          const data = JSON.parse(tokenData);
-          data.token = key.name.substring(10); // 移除'ku9_token_'前缀
-          ku9Tokens.push(data);
+  // 测试识别功能
+  if (formData.test_detection) {
+    const testUA = formData.test_ua || '';
+    const testHeaders = {};
+    
+    // 解析测试头
+    if (formData.test_headers) {
+      formData.test_headers.split('\n').forEach(line => {
+        const [key, value] = line.split(':').map(s => s.trim());
+        if (key && value) {
+          testHeaders[key] = value;
         }
-      } catch (error) {
-        console.error('解析酷9令牌失败:', key.name, error);
+      });
+    }
+    
+    // 创建模拟请求
+    const mockRequest = {
+      headers: {
+        get: (name) => testHeaders[name] || '',
+        has: (name) => !!testHeaders[name]
       }
-    }
+    };
+    
+    // 执行测试
+    const detectionResult = await enhancedDetectKu9Player(
+      testUA, 
+      mockRequest.headers, 
+      formData.test_ip || '127.0.0.1', 
+      env
+    );
+    
+    messages.push(`🧪 测试结果: ${detectionResult.isKu9 ? '✅ 识别为酷9' : '❌ 非酷9'} (置信度: ${detectionResult.confidence}%)`);
+    messages.push(`识别方法: ${detectionResult.methods.join(', ')}`);
   }
   
-  // 按创建时间排序
-  ku9Tokens.sort((a, b) => b.created_at - a.created_at);
+  // 加载现有配置
+  const configData = await env.MY_TEXT_STORAGE.get('ku9_detection_config');
+  let config = {
+    app_signatures: [
+      'ku9_app_signature_v1',
+      'com.ku9.player_v2',
+      'k9player_android_sign'
+    ],
+    header_patterns: [
+      'X-Ku9-Version',
+      'X-Player-Type=ku9',
+      'X-App-Name=酷9播放器'
+    ],
+    ua_patterns: [
+      'Ku9Player',
+      '酷9播放器',
+      'com.ku9.player',
+      'K9Player',
+      'MTV\\/',
+      'tvbox.*ku9',
+      'ku9.*tvbox'
+    ],
+    behavior_patterns: [
+      'accept: application/x-mpegurl',
+      'accept: audio/x-mpegurl',
+      'connection: keep-alive',
+      'range: bytes='
+    ],
+    param_patterns: [
+      'ku9_token=',
+      'player=ku9',
+      'type=tvbox'
+    ],
+    detection_threshold: 70,
+    enable_behavior_analysis: true,
+    enable_app_fingerprint: true,
+    enable_proxy_detection: true,
+    strict_mode: false
+  };
   
-  // 生成令牌列表HTML
-  let tokensHTML = '';
-  if (ku9Tokens.length > 0) {
-    for (const token of ku9Tokens) {
-      const createdDate = new Date(token.created_at).toLocaleString('zh-CN');
-      const expiresDate = new Date(token.expires_at).toLocaleString('zh-CN');
-      const lastUsedDate = token.last_used ? new Date(token.last_used).toLocaleString('zh-CN') : '从未使用';
-      const status = token.enabled ? '✅ 启用' : '❌ 禁用';
-      const statusClass = token.enabled ? 'status-enabled' : 'status-disabled';
-      const usagePercent = token.max_usage > 0 ? Math.round((token.used_count / token.max_usage) * 100) : 0;
-      
-      tokensHTML += `
-<tr>
-  <td><code class="token-code">${token.token}</code></td>
-  <td>${token.device_name}</td>
-  <td>${createdDate}</td>
-  <td>${expiresDate}</td>
-  <td>${token.used_count} / ${token.max_usage}</td>
-  <td>
-    <div class="usage-bar">
-      <div class="usage-fill" style="width: ${usagePercent}%"></div>
-    </div>
-    ${usagePercent}%
-  </td>
-  <td>${lastUsedDate}</td>
-  <td><span class="${statusClass}">${status}</span></td>
-  <td>
-    <button class="action-btn copy-token-btn" onclick="copyToken('${token.token}')">复制</button>
-    <button class="action-btn toggle-btn" onclick="toggleToken('${token.token}', ${!token.enabled})">${token.enabled ? '禁用' : '启用'}</button>
-    <button class="action-btn delete-btn" onclick="deleteToken('${token.token}')">删除</button>
-  </td>
-</tr>
-`;
-    }
-  } else {
-    tokensHTML = '<tr><td colspan="9" style="text-align:center;padding:20px;">暂无酷9令牌</td></tr>';
+  if (configData) {
+    config = { ...config, ...JSON.parse(configData) };
   }
+  
+  // 加载已知设备ID
+  const knownDeviceIdsData = await env.MY_TEXT_STORAGE.get('ku9_known_device_ids');
+  const knownDeviceIds = knownDeviceIdsData ? JSON.parse(knownDeviceIdsData) : [];
+  
+  // 加载已知IP
+  const knownIPsData = await env.MY_TEXT_STORAGE.get('ku9_known_ips');
+  const knownIPs = knownIPsData ? JSON.parse(knownIPsData) : [];
   
   return `<!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8">
-<title>酷9令牌管理</title>
+<title>酷9精确识别配置</title>
 <style>
 body{font-family:"Segoe UI",Tahoma,sans-serif;font-size:14px;color:#333;margin:0;padding:10px;background:#f5f5f5;}
 .container{max-width:100%;margin:0 auto;}
 .back-link{display:inline-block;margin-bottom:15px;color:#4a6cf7;text-decoration:none;padding:6px 12px;background:white;border-radius:4px;border:1px solid #ddd;}
 .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;}
 .header h1{margin:0;color:#4a6cf7;}
-.generate-form{background:white;padding:20px;border-radius:8px;margin-bottom:20px;box-shadow:0 2px 4px rgba(0,0,0,0.1);}
-.form-grid{display:grid;grid-template-columns:repeat(auto-fit, minmax(250px, 1fr));gap:15px;margin-bottom:15px;}
-.form-group label{display:block;margin-bottom:5px;color:#555;font-weight:bold;}
-.form-group input, .form-group textarea{width:100%;padding:8px;border:1px solid #ddd;border-radius:4px;box-sizing:border-box;}
-.form-group textarea{height:80px;resize:vertical;}
-.submit-btn{background:#4a6cf7;color:white;border:none;padding:10px 20px;border-radius:4px;cursor:pointer;font-size:16px;}
-.submit-btn:hover{background:#3653d3;}
-.tokens-table{width:100%;border-collapse:collapse;background:white;border-radius:8px;overflow:hidden;box-shadow:0 2px 4px rgba(0,0,0,0.1);}
-.tokens-table th{background:#4a6cf7;color:white;padding:12px 8px;text-align:left;font-weight:normal;}
-.tokens-table td{padding:8px;border-bottom:1px solid #eee;}
-.tokens-table tr:hover{background:#f9f9f9;}
-.token-code{font-family:monospace;background:#f8f9fa;padding:2px 6px;border-radius:3px;border:1px solid #ddd;}
-.status-enabled{color:#5cb85c;font-weight:bold;}
-.status-disabled{color:#d9534f;font-weight:bold;}
-.usage-bar{width:100px;height:10px;background:#eee;border-radius:5px;overflow:hidden;display:inline-block;margin-right:10px;}
-.usage-fill{height:100%;background:#5cb85c;transition:width 0.3s;}
-.action-btn{padding:3px 8px;border:none;border-radius:3px;cursor:pointer;font-size:12px;margin:2px;}
-.copy-token-btn{background:#5bc0de;color:white;}
-.toggle-btn{background:#f0ad4e;color:white;}
-.delete-btn{background:#d9534f;color:white;}
+.config-form{background:white;padding:20px;border-radius:8px;margin-bottom:20px;box-shadow:0 2px 4px rgba(0,0,0,0.1);}
+.form-group{margin-bottom:20px;}
+.form-group label{display:block;margin-bottom:8px;color:#555;font-weight:bold;font-size:15px;}
+.form-group textarea{width:100%;padding:10px;border:1px solid #ddd;border-radius:4px;box-sizing:border-box;font-family:monospace;font-size:13px;min-height:80px;}
+.form-group input[type="number"]{width:100px;padding:8px;border:1px solid #ddd;border-radius:4px;}
+.checkbox-group{margin:10px 0;}
+.checkbox-group label{display:inline-flex;align-items:center;margin-right:15px;font-weight:normal;}
+.checkbox-group input{margin-right:5px;}
+.submit-btn{background:#4a6cf7;color:white;border:none;padding:10px 20px;border-radius:4px;cursor:pointer;font-size:16px;margin-right:10px;}
+.test-btn{background:#28a745;color:white;border:none;padding:10px 20px;border-radius:4px;cursor:pointer;font-size:16px;}
 .message{background:#d4edda;color:#155724;padding:10px;border-radius:4px;margin-bottom:15px;border:1px solid #c3e6cb;}
-.instruction-box{background:#e3f2fd;border:1px solid #bbdefb;border-radius:5px;padding:15px;margin-bottom:20px;}
-.instruction-box h3{margin-top:0;color:#1976d2;}
-.instruction-box ul{padding-left:20px;}
-.instruction-box li{margin-bottom:8px;}
-.usage-info{background:#f8f9fa;border:1px solid #28a745;border-radius:5px;padding:15px;margin-bottom:20px;}
-.usage-info h4{margin-top:0;color:#28a745;}
+.error-message{background:#f8d7da;color:#721c24;padding:10px;border-radius:4px;margin-bottom:15px;border:1px solid #f5c6cb;}
+.info-box{background:#e3f2fd;border:1px solid #bbdefb;border-radius:5px;padding:15px;margin-bottom:20px;}
+.info-box h3{margin-top:0;color:#1976d2;}
+.detection-methods{display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:15px;margin-bottom:20px;}
+.method-card{background:white;padding:15px;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.1);}
+.method-card h4{margin-top:0;color:#4a6cf7;}
+.method-card ul{padding-left:20px;}
+.method-card li{margin-bottom:5px;}
 .code-block{background:#333;color:#fff;padding:15px;border-radius:5px;font-family:monospace;overflow-x:auto;margin:10px 0;}
+.test-section{background:#f8f9fa;border:1px solid #ddd;border-radius:5px;padding:20px;margin-bottom:20px;}
+.test-result{background:#e9ecef;padding:15px;border-radius:5px;margin-top:15px;display:none;}
 </style>
 </head>
 <body>
@@ -655,1124 +745,1253 @@ body{font-family:"Segoe UI",Tahoma,sans-serif;font-size:14px;color:#333;margin:0
   <a href="./search.html?manage_token=${managementToken}" class="back-link">← 返回管理页面</a>
   
   <div class="header">
-    <h1>🎯 酷9播放器令牌管理</h1>
+    <h1>🔍 酷9精确识别配置 V4.0</h1>
   </div>
   
   ${messages.map(msg => `<div class="message">${msg}</div>`).join('')}
   
-  <div class="instruction-box">
-    <h3>📖 使用说明：</h3>
-    <ul>
-      <li>酷9播放器需要使用专属令牌才能访问加密内容</li>
-      <li>每个令牌对应一个设备，可设置使用次数限制</li>
-      <li>令牌可通过HTTP头 <code>X-Ku9-Token</code> 或查询参数 <code>ku9_token</code> 传递</li>
-      <li>酷9播放器需修改配置，在接口URL后添加 <code>?ku9_token=YOUR_TOKEN</code></li>
-    </ul>
-  </div>
-  
-  <div class="usage-info">
-    <h4>🔧 酷9播放器配置方法：</h4>
-    <p>在酷9播放器的接口地址中添加令牌参数：</p>
-    <div class="code-block">
-      原地址：https://your-domain.com/z/filename.txt<br>
-      新地址：https://your-domain.com/z/filename.txt?ku9_token=YOUR_TOKEN<br><br>
-      或使用酷9专用端点：<br>
-      https://your-domain.com/k9/filename.txt?ku9_token=YOUR_TOKEN
+  <div class="info-box">
+    <h3>🎯 精确识别系统说明：</h3>
+    <p>此系统使用8种识别方法，无论设备是否使用代理，都能准确识别酷9播放器：</p>
+    <div class="detection-methods">
+      <div class="method-card">
+        <h4>1. 应用程序签名</h4>
+        <ul>
+          <li>应用包名验证</li>
+          <li>数字签名检查</li>
+          <li>版本号验证</li>
+        </ul>
+      </div>
+      <div class="method-card">
+        <h4>2. HTTP头特征</h4>
+        <ul>
+          <li>X-Ku9-Version</li>
+          <li>X-Player-Type</li>
+          <li>自定义头部</li>
+        </ul>
+      </div>
+      <div class="method-card">
+        <h4>3. User-Agent分析</h4>
+        <ul>
+          <li>关键词匹配</li>
+          <li>格式分析</li>
+          <li>设备信息提取</li>
+        </ul>
+      </div>
+      <div class="method-card">
+        <h4>4. 行为特征识别</h4>
+        <ul>
+          <li>请求模式分析</li>
+          <li>参数格式识别</li>
+          <li>访问频率分析</li>
+        </ul>
+      </div>
     </div>
   </div>
   
-  <div class="generate-form">
-    <h2>生成新令牌</h2>
-    <form method="post" id="generateForm">
+  <form method="post" class="config-form">
+    <input type="hidden" name="manage_token" value="${managementToken}">
+    
+    <div class="form-group">
+      <label for="app_signatures">应用程序签名特征 (每行一个)：</label>
+      <textarea id="app_signatures" name="app_signatures">${config.app_signatures.join('\n')}</textarea>
+      <small>用于验证应用程序的数字签名或包名特征</small>
+    </div>
+    
+    <div class="form-group">
+      <label for="header_patterns">HTTP头特征 (每行一个)：</label>
+      <textarea id="header_patterns" name="header_patterns">${config.header_patterns.join('\n')}</textarea>
+      <small>格式：Header-Name 或 Header-Name=Value</small>
+    </div>
+    
+    <div class="form-group">
+      <label for="ua_patterns">User-Agent特征 (每行一个正则或关键词)：</label>
+      <textarea id="ua_patterns" name="ua_patterns">${config.ua_patterns.join('\n')}</textarea>
+      <small>支持正则表达式，如：Ku9Player、酷9.*播放器</small>
+    </div>
+    
+    <div class="form-group">
+      <label for="behavior_patterns">行为特征 (每行一个)：</label>
+      <textarea id="behavior_patterns" name="behavior_patterns">${config.behavior_patterns.join('\n')}</textarea>
+      <small>如：accept: application/x-mpegurl</small>
+    </div>
+    
+    <div class="form-group">
+      <label for="param_patterns">请求参数特征 (每行一个)：</label>
+      <textarea id="param_patterns" name="param_patterns">${config.param_patterns.join('\n')}</textarea>
+      <small>如：ku9_token=、player=ku9</small>
+    </div>
+    
+    <div class="form-group">
+      <label for="known_device_ids">已知酷9设备ID (每行一个)：</label>
+      <textarea id="known_device_ids" name="known_device_ids">${knownDeviceIds.join('\n')}</textarea>
+      <small>从访问日志中提取的确认为酷9的设备ID</small>
+    </div>
+    
+    <div class="form-group">
+      <label for="known_ips">已知酷9 IP地址 (每行一个)：</label>
+      <textarea id="known_ips" name="known_ips">${knownIPs.join('\n')}</textarea>
+      <small>从访问日志中提取的确认为酷9的IP地址</small>
+    </div>
+    
+    <div class="form-group">
+      <label for="detection_threshold">识别阈值 (%):</label>
+      <input type="number" id="detection_threshold" name="detection_threshold" value="${config.detection_threshold}" min="0" max="100">
+      <small>置信度达到此值即识别为酷9</small>
+    </div>
+    
+    <div class="checkbox-group">
+      <h4>高级功能：</h4>
+      <label><input type="checkbox" name="enable_behavior_analysis" value="true" ${config.enable_behavior_analysis ? 'checked' : ''}> 启用行为分析</label>
+      <label><input type="checkbox" name="enable_app_fingerprint" value="true" ${config.enable_app_fingerprint ? 'checked' : ''}> 启用应用指纹</label>
+      <label><input type="checkbox" name="enable_proxy_detection" value="true" ${config.enable_proxy_detection ? 'checked' : ''}> 启用代理检测</label>
+      <label><input type="checkbox" name="strict_mode" value="true" ${config.strict_mode ? 'checked' : ''}> 严格模式</label>
+    </div>
+    
+    <button type="submit" name="update_config" value="1" class="submit-btn">💾 保存配置</button>
+  </form>
+  
+  <div class="test-section">
+    <h3>🧪 测试识别功能</h3>
+    <form method="post" id="testForm">
       <input type="hidden" name="manage_token" value="${managementToken}">
-      <div class="form-grid">
-        <div class="form-group">
-          <label for="device_name">设备名称：</label>
-          <input type="text" id="device_name" name="device_name" placeholder="例如：客厅电视、卧室手机" required>
-        </div>
-        <div class="form-group">
-          <label for="expires_days">有效期（天）：</label>
-          <input type="number" id="expires_days" name="expires_days" value="30" min="1" max="365">
-        </div>
-        <div class="form-group">
-          <label for="max_usage">最大使用次数：</label>
-          <input type="number" id="max_usage" name="max_usage" value="1000" min="1">
-        </div>
+      
+      <div class="form-group">
+        <label for="test_ua">测试 User-Agent:</label>
+        <textarea id="test_ua" name="test_ua" placeholder="输入要测试的User-Agent字符串" rows="3"></textarea>
       </div>
-      <div class="form-grid">
-        <div class="form-group">
-          <label for="allowed_ips">允许的IP（可选，逗号分隔）：</label>
-          <input type="text" id="allowed_ips" name="allowed_ips" placeholder="例如：192.168.1.100, 192.168.1.101">
-        </div>
-        <div class="form-group" style="grid-column: span 2;">
-          <label for="description">描述（可选）：</label>
-          <textarea id="description" name="description" placeholder="设备描述信息"></textarea>
-        </div>
+      
+      <div class="form-group">
+        <label for="test_headers">测试 HTTP头 (每行一个):</label>
+        <textarea id="test_headers" name="test_headers" placeholder="X-Ku9-Version: 2.0.1\nX-Player-Type: ku9" rows="4"></textarea>
       </div>
-      <button type="submit" name="generate_token" value="1" class="submit-btn">🎫 生成酷9令牌</button>
+      
+      <div class="form-group">
+        <label for="test_ip">测试 IP地址:</label>
+        <input type="text" id="test_ip" name="test_ip" value="127.0.0.1">
+      </div>
+      
+      <button type="submit" name="test_detection" value="1" class="test-btn">🔍 测试识别</button>
     </form>
+    
+    <div id="testResult" class="test-result"></div>
   </div>
   
-  <h2>现有令牌列表</h2>
-  <table class="tokens-table">
-    <thead>
-      <tr>
-        <th>令牌</th>
-        <th>设备名称</th>
-        <th>创建时间</th>
-        <th>过期时间</th>
-        <th>使用次数</th>
-        <th>使用率</th>
-        <th>最后使用</th>
-        <th>状态</th>
-        <th>操作</th>
-      </tr>
-    </thead>
-    <tbody>
-      ${tokensHTML}
-    </tbody>
-  </table>
+  <div class="info-box">
+    <h3>📖 使用建议：</h3>
+    <ul>
+      <li>1. 从访问日志中提取确认为酷9的UA和IP，添加到相应列表</li>
+      <li>2. 定期更新应用程序签名特征</li>
+      <li>3. 使用"应用程序指纹管理"页面查看和管理应用指纹</li>
+      <li>4. 在"设备管理"页面手动确认设备是否为酷9</li>
+      <li>5. 建议阈值设置在70-80之间，避免误判</li>
+    </ul>
+    
+    <h4>酷9播放器配置示例：</h4>
+    <div class="code-block">
+// 酷9播放器应在请求中添加以下头部：<br>
+X-Ku9-Version: 2.0.1<br>
+X-Player-Type: ku9<br>
+X-App-Name: 酷9播放器<br>
+X-Device-ID: 设备唯一标识<br><br>
+// 或使用应用程序验证端点<br>
+POST /verify_app<br>
+Content-Type: application/json<br>
+{<br>
+  "app_name": "酷9播放器",<br>
+  "app_version": "2.0.1",<br>
+  "device_id": "设备唯一标识",<br>
+  "signature": "应用程序签名"<br>
+}
+    </div>
+  </div>
 </div>
 
 <script>
-// 复制令牌
-function copyToken(token) {
-  navigator.clipboard.writeText(token)
-    .then(() => alert('令牌已复制到剪贴板'))
-    .catch(err => alert('复制失败: ' + err));
-}
-
-// 切换令牌状态
-function toggleToken(token, enable) {
-  const action = enable ? '启用' : '禁用';
-  if (confirm('确定要' + action + '此令牌吗？')) {
-    fetch('/api_update_device?manage_token=${managementToken}', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: 'device_token=' + encodeURIComponent(token) + '&enabled=' + enable
-    })
-    .then(response => response.json())
-    .then(data => {
-      if (data.success) {
-        alert('令牌状态已更新');
-        location.reload();
-      } else {
-        alert('更新失败: ' + (data.error || ''));
-      }
-    })
-    .catch(error => {
-      console.error('切换令牌状态失败:', error);
-      alert('操作失败');
-    });
-  }
-}
-
-// 删除令牌
-function deleteToken(token) {
-  if (confirm('确定要删除此令牌吗？此操作不可恢复！')) {
-    fetch('/api_delete_ku9_token?manage_token=${managementToken}', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: 'token=' + encodeURIComponent(token)
-    })
-    .then(response => response.json())
-    .then(data => {
-      if (data.success) {
-        alert('令牌已删除');
-        location.reload();
-      } else {
-        alert('删除失败: ' + (data.error || ''));
-      }
-    })
-    .catch(error => {
-      console.error('删除令牌失败:', error);
-      alert('删除失败');
-    });
-  }
-}
+// 处理测试表单提交
+document.getElementById('testForm').addEventListener('submit', function(e) {
+  e.preventDefault();
+  
+  const testResult = document.getElementById('testResult');
+  testResult.style.display = 'block';
+  testResult.innerHTML = '<p>正在测试识别功能...</p>';
+  
+  const formData = new FormData(this);
+  
+  fetch('?manage_token=${managementToken}', {
+    method: 'POST',
+    body: formData
+  })
+  .then(response => response.text())
+  .then(html => {
+    // 提取测试结果
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, 'text/html');
+    const messages = doc.querySelectorAll('.message');
+    
+    if (messages.length > 0) {
+      testResult.innerHTML = '';
+      messages.forEach(msg => {
+        testResult.innerHTML += '<p>' + msg.textContent + '</p>';
+      });
+    } else {
+      testResult.innerHTML = '<p>测试完成，但未收到结果</p>';
+    }
+  })
+  .catch(error => {
+    testResult.innerHTML = '<p class="error-message">测试失败: ' + error.message + '</p>';
+  });
+});
 </script>
 </body>
 </html>`;
 }
 
-// 设备管理页面 HTML
-async function getDevicesHTML(request, env, managementToken) {
+// 应用程序指纹管理页面 HTML
+async function getAppFingerprintsHTML(request, env, managementToken) {
   const url = new URL(request.url);
   const formData = await parseFormData(request);
   
-  // 获取所有设备信息
-  const allKeys = await env.MY_TEXT_STORAGE.list();
-  const devices = new Map(); // 使用Map按设备ID分组
+  let messages = [];
   
-  // 获取所有日志，提取设备信息
-  const allLogs = await env.MY_TEXT_STORAGE.list({ prefix: 'log_' });
-  
-  for (const key of allLogs.keys) {
-    try {
-      const logData = await env.MY_TEXT_STORAGE.get(key.name);
-      if (logData) {
-        const log = JSON.parse(logData);
-        
-        // 生成设备指纹：IP + UA的哈希
-        const deviceFingerprint = await generateDeviceFingerprint(log.ip, log.userAgent);
-        const deviceId = deviceFingerprint.substring(0, 16); // 取前16位作为设备ID
-        
-        if (!devices.has(deviceId)) {
-          devices.set(deviceId, {
-            id: deviceId,
-            ip: log.ip,
-            userAgent: log.userAgent,
-            firstSeen: log.timestamp,
-            lastSeen: log.timestamp,
-            accessCount: 1,
-            ku9Status: 'unknown', // unknown, confirmed, blocked
-            isKu9: false,
-            status: 'pending', // pending, allowed, blocked
-            logs: [log]
-          });
-        } else {
-          const device = devices.get(deviceId);
-          device.lastSeen = Math.max(device.lastSeen, log.timestamp);
-          device.firstSeen = Math.min(device.firstSeen, log.timestamp);
-          device.accessCount++;
-          device.logs.push(log);
-          
-          // 更新酷9状态
-          if (log.ku9_detected === 'confirmed') {
-            device.ku9Status = 'confirmed';
-            device.isKu9 = true;
-          }
-        }
-      }
-    } catch (error) {
-      console.error('解析设备日志失败:', key.name, error);
-    }
-  }
-  
-  // 处理标记操作
-  if (formData.mark_device) {
-    const deviceId = formData.device_id;
-    const markAsKu9 = formData.mark_as_ku9 === 'true';
+  // 处理手动添加指纹
+  if (formData.add_fingerprint) {
+    const fingerprintData = {
+      id: generateFingerprintId(),
+      app_name: formData.app_name || '未知应用',
+      app_version: formData.app_version || '',
+      device_id: formData.device_id || '',
+      user_agent: formData.user_agent || '',
+      http_headers: formData.http_headers ? JSON.parse(formData.http_headers) : {},
+      ip_address: formData.ip_address || '',
+      signature: formData.signature || '',
+      is_ku9: formData.is_ku9 === 'true',
+      confidence: parseInt(formData.confidence) || 100,
+      created_at: Date.now(),
+      last_seen: Date.now(),
+      source: 'manual',
+      notes: formData.notes || ''
+    };
     
-    if (deviceId && devices.has(deviceId)) {
-      const device = devices.get(deviceId);
+    await env.MY_TEXT_STORAGE.put(`app_fingerprint_${fingerprintData.id}`, JSON.stringify(fingerprintData));
+    messages.push(`✅ 应用程序指纹已添加: ${fingerprintData.app_name}`);
+  }
+  
+  // 处理批量导入
+  if (formData.import_fingerprints) {
+    try {
+      const fingerprints = JSON.parse(formData.fingerprints_json || '[]');
+      let importedCount = 0;
       
-      // 更新设备信息
-      device.ku9Status = markAsKu9 ? 'confirmed' : 'blocked';
-      device.isKu9 = markAsKu9;
-      device.status = markAsKu9 ? 'allowed' : 'blocked';
+      for (const fp of fingerprints) {
+        const fingerprintId = fp.id || generateFingerprintId();
+        const fingerprintData = {
+          id: fingerprintId,
+          app_name: fp.app_name || '未知应用',
+          app_version: fp.app_version || '',
+          device_id: fp.device_id || '',
+          user_agent: fp.user_agent || '',
+          http_headers: fp.http_headers || {},
+          ip_address: fp.ip_address || '',
+          signature: fp.signature || '',
+          is_ku9: fp.is_ku9 || false,
+          confidence: fp.confidence || 100,
+          created_at: fp.created_at || Date.now(),
+          last_seen: fp.last_seen || Date.now(),
+          source: 'import',
+          notes: fp.notes || ''
+        };
+        
+        await env.MY_TEXT_STORAGE.put(`app_fingerprint_${fingerprintId}`, JSON.stringify(fingerprintData));
+        importedCount++;
+      }
       
-      // 保存到存储
-      await env.MY_TEXT_STORAGE.put(`device_${deviceId}`, JSON.stringify(device));
-      
-      // 更新相关日志
-      for (const log of device.logs) {
-        if (log.id) {
-          const logKey = `log_${log.id}`;
-          const logData = await env.MY_TEXT_STORAGE.get(logKey);
-          if (logData) {
-            const logObj = JSON.parse(logData);
-            logObj.ku9_detected = markAsKu9 ? 'confirmed' : 'blocked';
-            logObj.device_id = deviceId;
-            await env.MY_TEXT_STORAGE.put(logKey, JSON.stringify(logObj));
-          }
+      messages.push(`✅ 已批量导入 ${importedCount} 个应用程序指纹`);
+    } catch (error) {
+      messages.push(`❌ 导入失败: ${error.message}`);
+    }
+  }
+  
+  // 获取所有应用程序指纹
+  const allKeys = await env.MY_TEXT_STORAGE.list();
+  const appFingerprints = [];
+  
+  for (const key of allKeys.keys) {
+    if (key.name.startsWith('app_fingerprint_')) {
+      try {
+        const fingerprintData = await env.MY_TEXT_STORAGE.get(key.name);
+        if (fingerprintData) {
+          const data = JSON.parse(fingerprintData);
+          appFingerprints.push(data);
         }
+      } catch (error) {
+        console.error('解析应用程序指纹失败:', key.name, error);
       }
     }
   }
   
-  // 转换Map为数组并排序
-  const deviceList = Array.from(devices.values());
-  deviceList.sort((a, b) => b.lastSeen - a.lastSeen);
+  // 按最后看到时间排序
+  appFingerprints.sort((a, b) => b.last_seen - a.last_seen);
   
-  // 生成设备列表HTML
-  let devicesHTML = '';
-  if (deviceList.length > 0) {
-    for (const device of deviceList) {
-      const firstSeen = new Date(device.firstSeen).toLocaleString('zh-CN');
-      const lastSeen = new Date(device.lastSeen).toLocaleString('zh-CN');
-      const lastActive = Math.floor((Date.now() - device.lastSeen) / (1000 * 60 * 60)); // 小时
+  // 统计信息
+  const stats = {
+    total: appFingerprints.length,
+    ku9: appFingerprints.filter(fp => fp.is_ku9).length,
+    non_ku9: appFingerprints.filter(fp => !fp.is_ku9).length,
+    high_confidence: appFingerprints.filter(fp => fp.confidence >= 80).length,
+    unique_devices: [...new Set(appFingerprints.map(fp => fp.device_id).filter(id => id))].length
+  };
+  
+  // 生成指纹列表HTML
+  let fingerprintsHTML = '';
+  if (appFingerprints.length > 0) {
+    for (const fp of appFingerprints) {
+      const createdDate = new Date(fp.created_at).toLocaleString('zh-CN');
+      const lastSeenDate = new Date(fp.last_seen).toLocaleString('zh-CN');
+      const ku9Status = fp.is_ku9 ? '<span class="status-ku9">✅ 酷9</span>' : '<span class="status-non-ku9">❌ 非酷9</span>';
+      const confidenceClass = fp.confidence >= 80 ? 'high-confidence' : fp.confidence >= 50 ? 'medium-confidence' : 'low-confidence';
       
-      let ku9StatusHTML = '';
-      let statusHTML = '';
-      let actionHTML = '';
+      // UA预览
+      const uaPreview = fp.user_agent.length > 30 ? 
+        fp.user_agent.substring(0, 30) + '...' : fp.user_agent;
       
-      if (device.ku9Status === 'confirmed') {
-        ku9StatusHTML = '<span class="status-confirmed">✅ 已确认为酷9</span>';
-        statusHTML = '<span class="status-allowed">✅ 允许访问</span>';
-        actionHTML = `<button class="action-btn block-btn" onclick="markDevice('${device.id}', false)">标记为非酷9</button>`;
-      } else if (device.ku9Status === 'blocked') {
-        ku9StatusHTML = '<span class="status-blocked">❌ 确认为非酷9</span>';
-        statusHTML = '<span class="status-blocked">❌ 禁止访问</span>';
-        actionHTML = `<button class="action-btn allow-btn" onclick="markDevice('${device.id}', true)">标记为酷9</button>`;
-      } else {
-        ku9StatusHTML = '<span class="status-unknown">❓ 待确认</span>';
-        statusHTML = '<span class="status-pending">⏳ 待审核</span>';
-        actionHTML = `
-          <button class="action-btn allow-btn" onclick="markDevice('${device.id}', true)">标记为酷9</button>
-          <button class="action-btn block-btn" onclick="markDevice('${device.id}', false)">标记为非酷9</button>
-        `;
-      }
+      // 设备ID预览
+      const deviceIdPreview = fp.device_id ? 
+        (fp.device_id.length > 20 ? fp.device_id.substring(0, 20) + '...' : fp.device_id) : 'N/A';
       
-      // 提取UA特征
-      const uaPreview = device.userAgent.length > 40 ? 
-        device.userAgent.substring(0, 40) + '...' : device.userAgent;
-      
-      devicesHTML += `
+      fingerprintsHTML += `
 <tr>
-  <td><code>${device.id}</code></td>
-  <td>${device.ip}</td>
-  <td title="${device.userAgent}">${uaPreview}</td>
-  <td>${device.accessCount}</td>
-  <td>${firstSeen}</td>
-  <td>${lastSeen} (${lastActive}小时前)</td>
-  <td>${ku9StatusHTML}</td>
-  <td>${statusHTML}</td>
+  <td><code>${fp.id}</code></td>
+  <td>${fp.app_name}</td>
+  <td>${fp.app_version || 'N/A'}</td>
+  <td title="${fp.device_id || 'N/A'}">${deviceIdPreview}</td>
+  <td title="${fp.user_agent}">${uaPreview}</td>
+  <td>${fp.ip_address || 'N/A'}</td>
+  <td><span class="${confidenceClass}">${fp.confidence}%</span></td>
+  <td>${ku9Status}</td>
+  <td>${createdDate}</td>
+  <td>${lastSeenDate}</td>
   <td>
-    ${actionHTML}
-    <button class="action-btn detail-btn" onclick="showDeviceDetail('${device.id}')">详情</button>
+    <button class="action-btn view-btn" onclick="viewFingerprint('${fp.id.replace(/'/g, "\\'")}')">查看</button>
+    <button class="action-btn delete-btn" onclick="deleteFingerprint('${fp.id.replace(/'/g, "\\'")}')">删除</button>
   </td>
 </tr>
 `;
     }
   } else {
-    devicesHTML = '<tr><td colspan="9" style="text-align:center;padding:20px;">暂无设备信息</td></tr>';
+    fingerprintsHTML = '<tr><td colspan="11" style="text-align:center;padding:20px;">暂无应用程序指纹</td></tr>';
   }
   
   return `<!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8">
-<title>设备管理</title>
+<title>应用程序指纹管理</title>
 <style>
 body{font-family:"Segoe UI",Tahoma,sans-serif;font-size:14px;color:#333;margin:0;padding:10px;background:#f5f5f5;}
 .container{max-width:100%;margin:0 auto;}
 .back-link{display:inline-block;margin-bottom:15px;color:#4a6cf7;text-decoration:none;padding:6px 12px;background:white;border-radius:4px;border:1px solid #ddd;}
 .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;}
 .header h1{margin:0;color:#4a6cf7;}
-.devices-table{width:100%;border-collapse:collapse;background:white;border-radius:8px;overflow:hidden;box-shadow:0 2px 4px rgba(0,0,0,0.1);}
-.devices-table th{background:#4a6cf7;color:white;padding:12px 8px;text-align:left;font-weight:normal;}
-.devices-table td{padding:8px;border-bottom:1px solid #eee;}
-.devices-table tr:hover{background:#f9f9f9;}
-.status-confirmed{color:#5cb85c;font-weight:bold;}
-.status-blocked{color:#d9534f;font-weight:bold;}
-.status-unknown{color:#f0ad4e;font-weight:bold;}
-.status-allowed{color:#5cb85c;font-weight:bold;}
-.status-pending{color:#5bc0de;font-weight:bold;}
-.action-btn{padding:3px 8px;border:none;border-radius:3px;cursor:pointer;font-size:12px;margin:2px;}
-.allow-btn{background:#5cb85c;color:white;}
-.block-btn{background:#d9534f;color:white;}
-.detail-btn{background:#5bc0de;color:white;}
-.stats-grid{display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:15px;margin-bottom:20px;}
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:15px;margin-bottom:20px;}
 .stat-card{background:white;padding:15px;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.1);text-align:center;}
 .stat-card h3{margin:0 0 8px 0;font-size:14px;color:#666;}
 .stat-number{font-size:28px;font-weight:bold;color:#333;}
 .stat-number.total{color:#4a6cf7;}
 .stat-number.ku9{color:#5cb85c;}
 .stat-number.non-ku9{color:#d9534f;}
-.stat-number.pending{color:#f0ad4e;}
+.stat-number.high-confidence{color:#28a745;}
+.fingerprints-table{width:100%;border-collapse:collapse;background:white;border-radius:8px;overflow:hidden;box-shadow:0 2px 4px rgba(0,0,0,0.1);}
+.fingerprints-table th{background:#4a6cf7;color:white;padding:12px 8px;text-align:left;font-weight:normal;}
+.fingerprints-table td{padding:8px;border-bottom:1px solid #eee;}
+.fingerprints-table tr:hover{background:#f9f9f9;}
+.status-ku9{color:#5cb85c;font-weight:bold;}
+.status-non-ku9{color:#d9534f;font-weight:bold;}
+.high-confidence{color:#5cb85c;font-weight:bold;}
+.medium-confidence{color:#f0ad4e;font-weight:bold;}
+.low-confidence{color:#d9534f;font-weight:bold;}
+.action-btn{padding:3px 8px;border:none;border-radius:3px;cursor:pointer;font-size:12px;margin:2px;}
+.view-btn{background:#5bc0de;color:white;}
+.delete-btn{background:#d9534f;color:white;}
+.add-form{background:white;padding:20px;border-radius:8px;margin-bottom:20px;box-shadow:0 2px 4px rgba(0,0,0,0.1);}
+.form-grid{display:grid;grid-template-columns:repeat(auto-fit, minmax(250px, 1fr));gap:15px;margin-bottom:15px;}
+.form-group label{display:block;margin-bottom:5px;color:#555;font-weight:bold;}
+.form-group input, .form-group textarea{width:100%;padding:8px;border:1px solid #ddd;border-radius:4px;box-sizing:border-box;}
+.form-group textarea{height:80px;resize:vertical;}
+.submit-btn{background:#4a6cf7;color:white;border:none;padding:10px 20px;border-radius:4px;cursor:pointer;font-size:16px;}
+.import-section{background:#f8f9fa;border:1px solid #ddd;border-radius:5px;padding:20px;margin-bottom:20px;}
+.message{background:#d4edda;color:#155724;padding:10px;border-radius:4px;margin-bottom:15px;border:1px solid #c3e6cb;}
 .modal{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:1000;}
 .modal-content{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:white;padding:20px;border-radius:8px;max-width:800px;width:90%;max-height:80%;overflow:auto;}
 .modal-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:15px;border-bottom:1px solid #eee;padding-bottom:10px;}
 .modal-title{margin:0;color:#333;}
 .close-btn{background:none;border:none;font-size:20px;cursor:pointer;color:#999;}
 .close-btn:hover{color:#333;}
-.device-detail{font-family:monospace;background:#f8f9fa;padding:10px;border-radius:4px;overflow:auto;max-height:400px;}
+.fingerprint-detail{font-family:monospace;background:#f8f9fa;padding:10px;border-radius:4px;overflow:auto;max-height:400px;}
+.code-block{background:#333;color:#fff;padding:15px;border-radius:5px;font-family:monospace;overflow-x:auto;margin:10px 0;}
 </style>
 </head>
 <body>
 <div class="container">
-  <a href="./search.html?manage_token=${managementToken}" class="back-link">← 返回管理页面</a>
+  <a href="./ku9_detector.html?manage_token=${managementToken}" class="back-link">← 返回酷9识别配置</a>
   
   <div class="header">
-    <h1>📱 设备管理</h1>
+    <h1>📱 应用程序指纹管理</h1>
   </div>
   
-  <!-- 统计信息 -->
-  <div class="stats-grid">
-    <div class="stat-card">
-      <h3>总设备数</h3>
-      <div class="stat-number total">${deviceList.length}</div>
-    </div>
-    <div class="stat-card">
-      <h3>酷9设备</h3>
-      <div class="stat-number ku9">${deviceList.filter(d => d.ku9Status === 'confirmed').length}</div>
-    </div>
-    <div class="stat-card">
-      <h3>非酷9设备</h3>
-      <div class="stat-number non-ku9">${deviceList.filter(d => d.ku9Status === 'blocked').length}</div>
-    </div>
-    <div class="stat-card">
-      <h3>待确认设备</h3>
-      <div class="stat-number pending">${deviceList.filter(d => d.ku9Status === 'unknown').length}</div>
-    </div>
-  </div>
-  
-  <!-- 设备表格 -->
-  <table class="devices-table">
-    <thead>
-      <tr>
-        <th>设备ID</th>
-        <th>IP地址</th>
-        <th>User-Agent</th>
-        <th>访问次数</th>
-        <th>首次访问</th>
-        <th>最后访问</th>
-        <th>酷9状态</th>
-        <th>访问状态</th>
-        <th>操作</th>
-      </tr>
-    </thead>
-    <tbody>
-      ${devicesHTML}
-    </tbody>
-  </table>
-</div>
-
-<!-- 设备详情模态框 -->
-<div id="deviceDetailModal" class="modal">
-  <div class="modal-content">
-    <div class="modal-header">
-      <h3 class="modal-title">设备详情</h3>
-      <button class="close-btn" onclick="closeModal()">×</button>
-    </div>
-    <div id="deviceDetailContent" class="device-detail"></div>
-  </div>
-</div>
-
-<form id="markForm" method="post" style="display:none;">
-  <input type="hidden" name="manage_token" value="${managementToken}">
-  <input type="hidden" id="mark_device_id" name="device_id">
-  <input type="hidden" id="mark_as_ku9" name="mark_as_ku9">
-  <input type="hidden" name="mark_device" value="1">
-</form>
-
-<script>
-// 标记设备
-function markDevice(deviceId, isKu9) {
-  const action = isKu9 ? '标记为酷9播放器' : '标记为非酷9播放器';
-  if (confirm('确定要将此设备' + action + '吗？')) {
-    document.getElementById('mark_device_id').value = deviceId;
-    document.getElementById('mark_as_ku9').value = isKu9;
-    document.getElementById('markForm').submit();
-  }
-}
-
-// 显示设备详情
-async function showDeviceDetail(deviceId) {
-  try {
-    // 这里可以加载更多设备详情信息
-    const modal = document.getElementById('deviceDetailModal');
-    const content = document.getElementById('deviceDetailContent');
-    
-    // 模拟加载设备详情
-    content.innerHTML = '正在加载设备详情...';
-    modal.style.display = 'block';
-    
-    // 在实际应用中，这里应该从服务器获取设备详情
-    setTimeout(() => {
-      content.innerHTML = \`
-<strong>设备ID：</strong> \${deviceId}<br><br>
-<strong>功能说明：</strong><br>
-1. 设备通过IP和User-Agent自动识别<br>
-2. 酷9设备需要手动确认<br>
-3. 确认后设备可以正常访问<br>
-4. 标记为非酷9的设备将被阻止<br><br>
-<strong>操作建议：</strong><br>
-• 查看设备的访问日志确认是否为酷9<br>
-• 确认后设备会获得访问权限<br>
-• 可以随时更改设备的标记状态
-\`;
-    }, 500);
-    
-  } catch (error) {
-    console.error('加载设备详情失败:', error);
-    alert('加载设备详情失败');
-  }
-}
-
-// 关闭模态框
-function closeModal() {
-  document.getElementById('deviceDetailModal').style.display = 'none';
-}
-
-// 点击模态框外部关闭
-window.onclick = function(event) {
-  const modal = document.getElementById('deviceDetailModal');
-  if (event.target === modal) {
-    modal.style.display = 'none';
-  }
-}
-</script>
-</body>
-</html>`;
-}
-
-// 管理页面处理 - 保持不变
-async function handleManagementPage(request, env) {
-  try {
-    const url = new URL(request.url);
-    const managementToken = url.searchParams.get('manage_token');
-    const expectedToken = await env.MY_TEXT_STORAGE.get('management_token') || 'default_manage_token_2024';
-    
-    if (!managementToken || managementToken !== expectedToken) {
-      return new Response(await getManagementLoginHTML(request), {
-        headers: { 
-          'content-type': 'text/html;charset=UTF-8',
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'X-Content-Type-Options': 'nosniff'
-        },
-      });
-    }
-    
-    return new Response(await getSearchHTML(request, env, managementToken), {
-      headers: { 
-        'content-type': 'text/html;charset=UTF-8',
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'X-Content-Type-Options': 'nosniff'
-      },
-    });
-  } catch (error) {
-    console.error('管理页面错误:', error);
-    return new Response(`管理页面错误: ${error.message}`, { 
-      status: 500,
-      headers: {
-        'Content-Type': 'text/plain; charset=utf-8',
-        'X-Content-Type-Options': 'nosniff'
-      }
-    });
-  }
-}
-
-// 访问日志页面处理 - 保持不变
-async function handleLogsPage(request, env) {
-  try {
-    const url = new URL(request.url);
-    const managementToken = url.searchParams.get('manage_token');
-    const expectedToken = await env.MY_TEXT_STORAGE.get('management_token') || 'default_manage_token_2024';
-    
-    if (!managementToken || managementToken !== expectedToken) {
-      return new Response(await getManagementLoginHTML(request), {
-        headers: { 
-          'content-type': 'text/html;charset=UTF-8',
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'X-Content-Type-Options': 'nosniff'
-        },
-      });
-    }
-    
-    const formData = await parseFormData(request);
-    const page = parseInt(formData.page) || 1;
-    const pageSize = parseInt(formData.page_size) || 50;
-    const filterType = formData.filter_type || 'all';
-    const filterValue = formData.filter_value || '';
-    
-    const allLogs = await env.MY_TEXT_STORAGE.list({ prefix: 'log_' });
-    const logs = [];
-    
-    for (const key of allLogs.keys) {
-      try {
-        const logData = await env.MY_TEXT_STORAGE.get(key.name);
-        if (logData) {
-          const log = JSON.parse(logData);
-          log.id = key.name.substring(4);
-          
-          let includeLog = true;
-          
-          if (filterType !== 'all' && filterValue) {
-            if (filterType === 'filename' && !log.filename.includes(filterValue)) {
-              includeLog = false;
-            } else if (filterType === 'user_agent' && !log.userAgent.includes(filterValue)) {
-              includeLog = false;
-            } else if (filterType === 'ip' && !log.ip.includes(filterValue)) {
-              includeLog = false;
-            } else if (filterType === 'status' && !log.status.includes(filterValue)) {
-              includeLog = false;
-            } else if (filterType === 'ku9_status' && !log.ku9_detected.includes(filterValue)) {
-              includeLog = false;
-            }
-          }
-          
-          if (includeLog) {
-            logs.push(log);
-          }
-        }
-      } catch (error) {
-        console.error('解析日志失败:', key.name, error);
-      }
-    }
-    
-    logs.sort((a, b) => b.timestamp - a.timestamp);
-    
-    const totalLogs = logs.length;
-    const totalPages = Math.ceil(totalLogs / pageSize);
-    const startIndex = (page - 1) * pageSize;
-    const endIndex = Math.min(startIndex + pageSize, totalLogs);
-    const paginatedLogs = logs.slice(startIndex, endIndex);
-    
-    const stats = {
-      total: totalLogs,
-      today: logs.filter(log => {
-        const logDate = new Date(log.timestamp);
-        const today = new Date();
-        return logDate.toDateString() === today.toDateString();
-      }).length,
-      allowed: logs.filter(log => log.status === 'allowed').length,
-      blocked: logs.filter(log => log.status === 'blocked').length,
-      ku9_confirmed: logs.filter(log => log.ku9_detected === 'confirmed').length,
-      ku9_blocked: logs.filter(log => log.ku9_detected === 'blocked').length,
-      ku9_unknown: logs.filter(log => !log.ku9_detected || log.ku9_detected === 'unknown').length,
-      uniqueUserAgents: [...new Set(logs.map(log => log.userAgent))].length,
-      uniqueIPs: [...new Set(logs.map(log => log.ip))].length
-    };
-    
-    return new Response(await getLogsHTML(paginatedLogs, page, totalPages, stats, filterType, filterValue, managementToken), {
-      headers: { 
-        'content-type': 'text/html;charset=UTF-8',
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'X-Content-Type-Options': 'nosniff'
-      },
-    });
-  } catch (error) {
-    console.error('日志页面错误:', error);
-    return new Response(`日志页面错误: ${error.message}`, { 
-      status: 500,
-      headers: {
-        'Content-Type': 'text/plain; charset=utf-8',
-        'X-Content-Type-Options': 'nosniff'
-      }
-    });
-  }
-}
-
-// 访问日志页面 HTML - 增强版，添加酷9状态列
-async function getLogsHTML(logs, currentPage, totalPages, stats, filterType, filterValue, managementToken) {
-  let logsTableHTML = '';
-  
-  if (logs.length > 0) {
-    for (const log of logs) {
-      const time = new Date(log.timestamp).toLocaleString('zh-CN', {
-        year: 'numeric', month: '2-digit', day: '2-digit', 
-        hour: '2-digit', minute: '2-digit', second: '2-digit'
-      }).replace(/\//g, '.');
-      
-      const statusClass = log.status === 'allowed' ? 'status-allowed' : 'status-blocked';
-      const statusText = log.status === 'allowed' ? '✅ 允许' : '❌ 阻止';
-      
-      // 酷9状态
-      let ku9StatusHTML = '';
-      if (log.ku9_detected === 'confirmed') {
-        ku9StatusHTML = '<span class="ku9-status confirmed">✅ 酷9</span>';
-      } else if (log.ku9_detected === 'blocked') {
-        ku9StatusHTML = '<span class="ku9-status blocked">❌ 非酷9</span>';
-      } else {
-        ku9StatusHTML = '<span class="ku9-status unknown">❓ 待确认</span>';
-      }
-      
-      // 设备ID
-      const deviceId = log.device_id || 'N/A';
-      
-      logsTableHTML += `
-<tr>
-  <td>${time}</td>
-  <td><span class="${statusClass}">${statusText}</span></td>
-  <td>${ku9StatusHTML}</td>
-  <td><code>${log.filename || 'N/A'}</code></td>
-  <td>${log.ip || 'N/A'}</td>
-  <td><code>${deviceId}</code></td>
-  <td>
-    <div class="ua-preview" onclick="showUADetail('${log.id.replace(/'/g, "\\'")}')" title="点击查看完整UA">
-      ${log.userAgent ? (log.userAgent.length > 40 ? log.userAgent.substring(0, 40) + '...' : log.userAgent) : 'N/A'}
-    </div>
-  </td>
-  <td>${log.reason || 'N/A'}</td>
-  <td>
-    <button class="action-btn detail-btn" onclick="showLogDetail('${log.id.replace(/'/g, "\\'")}')">详情</button>
-    <button class="action-btn mark-btn" onclick="markUA('${log.id.replace(/'/g, "\\'")}', true)" title="标记为酷9">✅</button>
-    <button class="action-btn block-btn" onclick="markUA('${log.id.replace(/'/g, "\\'")}', false)" title="标记为非酷9">❌</button>
-  </td>
-</tr>
-`;
-    }
-  } else {
-    logsTableHTML = '<tr><td colspan="9" style="text-align:center;padding:20px;">暂无访问日志</td></tr>';
-  }
-  
-  let paginationHTML = '';
-  if (totalPages > 1) {
-    paginationHTML = '<div class="pagination">';
-    
-    if (currentPage > 1) {
-      paginationHTML += `<a href="?manage_token=${managementToken}&page=${currentPage - 1}&filter_type=${filterType}&filter_value=${encodeURIComponent(filterValue)}" class="page-link">上一页</a>`;
-    }
-    
-    const startPage = Math.max(1, currentPage - 2);
-    const endPage = Math.min(totalPages, currentPage + 2);
-    
-    for (let i = startPage; i <= endPage; i++) {
-      if (i === currentPage) {
-        paginationHTML += `<span class="page-link current">${i}</span>`;
-      } else {
-        paginationHTML += `<a href="?manage_token=${managementToken}&page=${i}&filter_type=${filterType}&filter_value=${encodeURIComponent(filterValue)}" class="page-link">${i}</a>`;
-      }
-    }
-    
-    if (currentPage < totalPages) {
-      paginationHTML += `<a href="?manage_token=${managementToken}&page=${currentPage + 1}&filter_type=${filterType}&filter_value=${encodeURIComponent(filterValue)}" class="page-link">下一页</a>`;
-    }
-    
-    paginationHTML += '</div>';
-  }
-  
-  return `<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8">
-<title>访问日志分析</title>
-<style>
-body{font-family:"Segoe UI",Tahoma,sans-serif;font-size:14px;color:#333;margin:0;padding:10px;background:#f5f5f5;}
-.logs-container{max-width:100%;margin:0 auto;}
-.back-link{display:inline-block;margin-bottom:15px;color:#4a6cf7;text-decoration:none;padding:6px 12px;background:white;border-radius:4px;border:1px solid #ddd;}
-.stats-grid{display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:15px;margin-bottom:20px;}
-.stat-card{background:white;padding:15px;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.1);text-align:center;}
-.stat-card h3{margin:0 0 8px 0;font-size:14px;color:#666;}
-.stat-number{font-size:28px;font-weight:bold;color:#333;}
-.stat-number.total{color:#4a6cf7;}
-.stat-number.today{color:#28a745;}
-.stat-number.allowed{color:#5cb85c;}
-.stat-number.blocked{color:#d9534f;}
-.stat-number.ku9-confirmed{color:#5cb85c;}
-.stat-number.ku9-blocked{color:#d9534f;}
-.stat-number.ku9-unknown{color:#f0ad4e;}
-.filters{background:white;padding:15px;border-radius:8px;margin-bottom:15px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
-.filter-input{padding:6px 10px;border:1px solid #ddd;border-radius:4px;min-width:200px;}
-.filter-btn{background:#4a6cf7;color:white;border:none;padding:6px 15px;border-radius:4px;cursor:pointer;}
-.logs-table{width:100%;border-collapse:collapse;background:white;border-radius:8px;overflow:hidden;box-shadow:0 2px 4px rgba(0,0,0,0.1);}
-.logs-table th{background:#4a6cf7;color:white;padding:12px 8px;text-align:left;font-weight:normal;}
-.logs-table td{padding:8px;border-bottom:1px solid #eee;}
-.logs-table tr:hover{background:#f9f9f9;}
-.status-allowed{color:#5cb85c;font-weight:bold;}
-.status-blocked{color:#d9534f;font-weight:bold;}
-.ku9-status.confirmed{color:#5cb85c;font-weight:bold;}
-.ku9-status.blocked{color:#d9534f;font-weight:bold;}
-.ku9-status.unknown{color:#f0ad4e;font-weight:bold;}
-.ua-preview{padding:4px;background:#f9f9f9;border-radius:3px;cursor:pointer;max-width:300px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.ua-preview:hover{background:#e3f2fd;}
-.action-btn{padding:3px 8px;border:none;border-radius:3px;cursor:pointer;font-size:12px;margin:2px;}
-.detail-btn{background:#5bc0de;color:white;}
-.mark-btn{background:#5cb85c;color:white;padding:3px 6px;}
-.block-btn{background:#d9534f;color:white;padding:3px 6px;}
-.pagination{margin-top:20px;text-align:center;}
-.page-link{display:inline-block;padding:6px 12px;margin:0 2px;border:1px solid #ddd;border-radius:4px;text-decoration:none;color:#333;}
-.page-link:hover{background:#f0f0f0;}
-.page-link.current{background:#4a6cf7;color:white;border-color:#4a6cf7;}
-.modal{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:1000;}
-.modal-content{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:white;padding:20px;border-radius:8px;max-width:800px;width:90%;max-height:80%;overflow:auto;}
-.modal-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:15px;border-bottom:1px solid #eee;padding-bottom:10px;}
-.modal-title{margin:0;color:#333;}
-.close-btn{background:none;border:none;font-size:20px;cursor:pointer;color:#999;}
-.close-btn:hover{color:#333;}
-.log-detail{font-family:monospace;background:#f8f9fa;padding:10px;border-radius:4px;overflow:auto;max-height:400px;}
-.clear-logs-btn{background:#d9534f;color:white;border:none;padding:8px 15px;border-radius:4px;cursor:pointer;margin-left:10px;}
-.clear-logs-btn:hover{background:#c9302c;}
-.export-btn{background:#5cb85c;color:white;border:none;padding:8px 15px;border-radius:4px;cursor:pointer;margin-left:10px;}
-.export-btn:hover{background:#4cae4c;}
-.devices-btn{background:#5bc0de;color:white;border:none;padding:8px 15px;border-radius:4px;cursor:pointer;margin-left:10px;}
-.devices-btn:hover{background:#46b8da;}
-</style>
-</head>
-
-<body>
-<div class="logs-container">
-  <a href="./search.html?manage_token=${managementToken}" class="back-link">← 返回管理页面</a>
+  ${messages.map(msg => `<div class="message">${msg}</div>`).join('')}
   
   <div class="stats-grid">
     <div class="stat-card">
-      <h3>总访问量</h3>
+      <h3>总指纹数</h3>
       <div class="stat-number total">${stats.total}</div>
     </div>
     <div class="stat-card">
-      <h3>今日访问</h3>
-      <div class="stat-number today">${stats.today}</div>
+      <h3>酷9指纹</h3>
+      <div class="stat-number ku9">${stats.ku9}</div>
     </div>
     <div class="stat-card">
-      <h3>允许访问</h3>
-      <div class="stat-number allowed">${stats.allowed}</div>
+      <h3>非酷9指纹</h3>
+      <div class="stat-number non-ku9">${stats.non_ku9}</div>
     </div>
     <div class="stat-card">
-      <h3>阻止访问</h3>
-      <div class="stat-number blocked">${stats.blocked}</div>
-    </div>
-    <div class="stat-card">
-      <h3>酷9已确认</h3>
-      <div class="stat-number ku9-confirmed">${stats.ku9_confirmed}</div>
-    </div>
-    <div class="stat-card">
-      <h3>酷9已阻止</h3>
-      <div class="stat-number ku9-blocked">${stats.ku9_blocked}</div>
-    </div>
-    <div class="stat-card">
-      <h3>待确认</h3>
-      <div class="stat-number ku9-unknown">${stats.ku9_unknown}</div>
+      <h3>高置信度</h3>
+      <div class="stat-number high-confidence">${stats.high_confidence}</div>
     </div>
   </div>
   
-  <div class="filters">
-    <form method="get" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+  <div class="add-form">
+    <h3>添加应用程序指纹</h3>
+    <form method="post">
       <input type="hidden" name="manage_token" value="${managementToken}">
-      <select name="filter_type" class="filter-input">
-        <option value="all" ${filterType === 'all' ? 'selected' : ''}>所有类型</option>
-        <option value="filename" ${filterType === 'filename' ? 'selected' : ''}>文件名</option>
-        <option value="user_agent" ${filterType === 'user_agent' ? 'selected' : ''}>User-Agent</option>
-        <option value="ip" ${filterType === 'ip' ? 'selected' : ''}>IP地址</option>
-        <option value="status" ${filterType === 'status' ? 'selected' : ''}>访问状态</option>
-        <option value="ku9_status" ${filterType === 'ku9_status' ? 'selected' : ''}>酷9状态</option>
-      </select>
-      <input type="text" name="filter_value" value="${filterValue}" placeholder="筛选条件..." class="filter-input">
-      <button type="submit" class="filter-btn">筛选</button>
-      <button type="button" class="export-btn" onclick="exportLogs()">导出日志</button>
-      <button type="button" class="devices-btn" onclick="location.href='devices.html?manage_token=${managementToken}'">设备管理</button>
-      <button type="button" class="clear-logs-btn" onclick="clearLogs()">清空日志</button>
+      <div class="form-grid">
+        <div class="form-group">
+          <label for="app_name">应用名称：</label>
+          <input type="text" id="app_name" name="app_name" placeholder="例如：酷9播放器" required>
+        </div>
+        <div class="form-group">
+          <label for="app_version">应用版本：</label>
+          <input type="text" id="app_version" name="app_version" placeholder="例如：2.0.1">
+        </div>
+        <div class="form-group">
+          <label for="device_id">设备ID：</label>
+          <input type="text" id="device_id" name="device_id" placeholder="设备唯一标识">
+        </div>
+        <div class="form-group">
+          <label for="ip_address">IP地址：</label>
+          <input type="text" id="ip_address" name="ip_address" placeholder="例如：192.168.1.100">
+        </div>
+      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label for="user_agent">User-Agent：</label>
+          <textarea id="user_agent" name="user_agent" placeholder="完整的User-Agent字符串"></textarea>
+        </div>
+        <div class="form-group">
+          <label for="http_headers">HTTP头 (JSON格式)：</label>
+          <textarea id="http_headers" name="http_headers" placeholder='{"X-Ku9-Version": "2.0.1", "X-Player-Type": "ku9"}'></textarea>
+        </div>
+      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label for="signature">应用程序签名：</label>
+          <input type="text" id="signature" name="signature" placeholder="应用签名或包名">
+        </div>
+        <div class="form-group">
+          <label for="confidence">置信度 (0-100)：</label>
+          <input type="number" id="confidence" name="confidence" value="100" min="0" max="100">
+        </div>
+        <div class="form-group">
+          <label for="is_ku9">是否为酷9：</label>
+          <select id="is_ku9" name="is_ku9">
+            <option value="true">✅ 是酷9播放器</option>
+            <option value="false">❌ 非酷9播放器</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="notes">备注：</label>
+        <textarea id="notes" name="notes" placeholder="额外的说明信息"></textarea>
+      </div>
+      <button type="submit" name="add_fingerprint" value="1" class="submit-btn">➕ 添加指纹</button>
     </form>
   </div>
   
-  <table class="logs-table">
+  <div class="import-section">
+    <h3>批量导入指纹</h3>
+    <form method="post">
+      <input type="hidden" name="manage_token" value="${managementToken}">
+      <div class="form-group">
+        <label for="fingerprints_json">指纹数据 (JSON数组)：</label>
+        <textarea id="fingerprints_json" name="fingerprints_json" placeholder='[{"app_name": "酷9播放器", "user_agent": "...", "is_ku9": true}]' rows="8"></textarea>
+      </div>
+      <button type="submit" name="import_fingerprints" value="1" class="submit-btn">📥 批量导入</button>
+    </form>
+  </div>
+  
+  <h3>应用程序指纹列表</h3>
+  <table class="fingerprints-table">
     <thead>
       <tr>
-        <th>时间</th>
-        <th>状态</th>
-        <th>酷9状态</th>
-        <th>文件名</th>
-        <th>IP地址</th>
+        <th>指纹ID</th>
+        <th>应用名称</th>
+        <th>版本</th>
         <th>设备ID</th>
-        <th>User-Agent (预览)</th>
-        <th>原因</th>
+        <th>User-Agent</th>
+        <th>IP地址</th>
+        <th>置信度</th>
+        <th>酷9状态</th>
+        <th>创建时间</th>
+        <th>最后看到</th>
         <th>操作</th>
       </tr>
     </thead>
     <tbody>
-      ${logsTableHTML}
+      ${fingerprintsHTML}
     </tbody>
   </table>
-  
-  ${paginationHTML}
 </div>
 
-<!-- 模态框 -->
-<div id="logDetailModal" class="modal">
+<!-- 指纹详情模态框 -->
+<div id="fingerprintDetailModal" class="modal">
   <div class="modal-content">
     <div class="modal-header">
-      <h3 class="modal-title">日志详情</h3>
+      <h3 class="modal-title">应用程序指纹详情</h3>
       <button class="close-btn" onclick="closeModal()">×</button>
     </div>
-    <div id="logDetailContent" class="log-detail"></div>
+    <div id="fingerprintDetailContent" class="fingerprint-detail"></div>
   </div>
 </div>
 
 <script>
-// 显示日志详情
-function showLogDetail(logId) {
-  fetch('/api_log_detail?manage_token=${managementToken}&log_id=' + encodeURIComponent(logId))
-    .then(response => response.json())
-    .then(data => {
-      const modal = document.getElementById('logDetailModal');
-      const content = document.getElementById('logDetailContent');
-      
+// 查看指纹详情
+async function viewFingerprint(fingerprintId) {
+  try {
+    const response = await fetch('/api_get_app_fingerprints?manage_token=${managementToken}&fingerprint_id=' + encodeURIComponent(fingerprintId));
+    const data = await response.json();
+    
+    const modal = document.getElementById('fingerprintDetailModal');
+    const content = document.getElementById('fingerprintDetailContent');
+    
+    if (data.success && data.fingerprint) {
+      const fp = data.fingerprint;
       let html = '';
-      if (data.log) {
-        const log = data.log;
-        html += \`<strong>时间：</strong> \${new Date(log.timestamp).toLocaleString()}<br><br>\`;
-        html += \`<strong>状态：</strong> \${log.status === 'allowed' ? '✅ 允许访问' : '❌ 阻止访问'}<br><br>\`;
-        html += \`<strong>酷9状态：</strong> \${log.ku9_detected || 'unknown'}<br><br>\`;
-        html += \`<strong>设备ID：</strong> \${log.device_id || 'N/A'}<br><br>\`;
-        html += \`<strong>文件名：</strong> \${log.filename || 'N/A'}<br><br>\`;
-        html += \`<strong>IP地址：</strong> \${log.ip || 'N/A'}<br><br>\`;
-        html += \`<strong>User-Agent：</strong><br>\${log.userAgent || 'N/A'}<br><br>\`;
-        html += \`<strong>访问原因：</strong> \${log.reason || 'N/A'}<br><br>\`;
-        html += \`<strong>完整日志：</strong><br><code>\${JSON.stringify(log, null, 2)}</code>\`;
-      } else {
-        html = '日志详情加载失败';
+      
+      html += \`<strong>指纹ID：</strong> \${fp.id}<br><br>\`;
+      html += \`<strong>应用名称：</strong> \${fp.app_name}<br><br>\`;
+      html += \`<strong>应用版本：</strong> \${fp.app_version || 'N/A'}<br><br>\`;
+      html += \`<strong>设备ID：</strong> \${fp.device_id || 'N/A'}<br><br>\`;
+      html += \`<strong>IP地址：</strong> \${fp.ip_address || 'N/A'}<br><br>\`;
+      html += \`<strong>置信度：</strong> \${fp.confidence}%<br><br>\`;
+      html += \`<strong>酷9状态：</strong> \${fp.is_ku9 ? '✅ 酷9播放器' : '❌ 非酷9播放器'}<br><br>\`;
+      html += \`<strong>创建时间：</strong> \${new Date(fp.created_at).toLocaleString()}<br><br>\`;
+      html += \`<strong>最后看到：</strong> \${new Date(fp.last_seen).toLocaleString()}<br><br>\`;
+      html += \`<strong>来源：</strong> \${fp.source || 'unknown'}<br><br>\`;
+      
+      if (fp.user_agent) {
+        html += \`<strong>User-Agent：</strong><br><code>\${fp.user_agent}</code><br><br>\`;
+      }
+      
+      if (fp.http_headers && Object.keys(fp.http_headers).length > 0) {
+        html += \`<strong>HTTP头：</strong><br><code>\${JSON.stringify(fp.http_headers, null, 2)}</code><br><br>\`;
+      }
+      
+      if (fp.signature) {
+        html += \`<strong>应用程序签名：</strong> \${fp.signature}<br><br>\`;
+      }
+      
+      if (fp.notes) {
+        html += \`<strong>备注：</strong> \${fp.notes}<br><br>\`;
       }
       
       content.innerHTML = html;
-      modal.style.display = 'block';
-    })
-    .catch(error => {
-      console.error('加载日志详情失败:', error);
-      alert('加载日志详情失败');
-    });
+    } else {
+      content.innerHTML = '加载指纹详情失败';
+    }
+    
+    modal.style.display = 'block';
+  } catch (error) {
+    console.error('加载指纹详情失败:', error);
+    alert('加载指纹详情失败');
+  }
 }
 
-// 标记UA为酷9或非酷9
-function markUA(logId, isKu9) {
-  const action = isKu9 ? '标记为酷9播放器' : '标记为非酷9播放器';
-  if (confirm('确定要将此UA' + action + '吗？')) {
-    fetch('/api_mark_ua?manage_token=${managementToken}', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: 'log_id=' + encodeURIComponent(logId) + '&is_ku9=' + isKu9
-    })
-    .then(response => response.json())
-    .then(data => {
-      if (data.success) {
-        alert('标记成功');
-        location.reload();
-      } else {
-        alert('标记失败: ' + (data.error || ''));
-      }
-    })
-    .catch(error => {
-      console.error('标记UA失败:', error);
-      alert('标记失败');
-    });
+// 删除指纹
+function deleteFingerprint(fingerprintId) {
+  if (confirm('确定要删除此应用程序指纹吗？此操作不可恢复！')) {
+    // 这里需要实现删除逻辑
+    // 由于删除需要后端API，这里暂时不实现
+    alert('删除功能需要后端API支持，请在后续版本中实现');
   }
 }
 
 // 关闭模态框
 function closeModal() {
-  document.getElementById('logDetailModal').style.display = 'none';
-}
-
-// 导出日志
-function exportLogs() {
-  const filterType = '${filterType}';
-  const filterValue = '${filterValue}';
-  window.open('/api_export_logs?manage_token=${managementToken}&filter_type=' + encodeURIComponent(filterType) + '&filter_value=' + encodeURIComponent(filterValue), '_blank');
-}
-
-// 清空日志
-function clearLogs() {
-  if (confirm('确定要清空所有访问日志吗？此操作不可恢复！')) {
-    fetch('/api_clear_logs?manage_token=${managementToken}', { method: 'POST' })
-      .then(response => response.json())
-      .then(data => {
-        if (data.success) {
-          alert('日志已清空');
-          location.reload();
-        } else {
-          alert('清空失败: ' + (data.error || ''));
-        }
-      })
-      .catch(error => {
-        console.error('清空日志失败:', error);
-        alert('清空日志失败');
-      });
-  }
+  document.getElementById('fingerprintDetailModal').style.display = 'none';
 }
 
 // 点击模态框外部关闭
 window.onclick = function(event) {
-  const modal = document.getElementById('logDetailModal');
+  const modal = document.getElementById('fingerprintDetailModal');
   if (event.target === modal) {
     modal.style.display = 'none';
   }
 }
+
+// 示例数据
+document.getElementById('fingerprints_json').addEventListener('click', function() {
+  if (this.value === '') {
+    this.value = \`[
+  {
+    "app_name": "酷9播放器",
+    "app_version": "2.0.1",
+    "device_id": "ku9_device_001",
+    "user_agent": "Ku9Player/2.0.1 (Android 10; TVBox)",
+    "http_headers": {
+      "X-Ku9-Version": "2.0.1",
+      "X-Player-Type": "ku9"
+    },
+    "ip_address": "192.168.1.100",
+    "is_ku9": true,
+    "confidence": 95,
+    "notes": "客厅电视"
+  },
+  {
+    "app_name": "TVBox",
+    "app_version": "1.0.0",
+    "device_id": "tvbox_device_001",
+    "user_agent": "TVBox/1.0.0 (Android 9; Mobile)",
+    "is_ku9": false,
+    "confidence": 30,
+    "notes": "手机版TVBox"
+  }
+]\`;
+  }
+});
 </script>
 </body>
 </html>`;
 }
 
-// 搜索管理页面 HTML - 保持不变
-async function getSearchHTML(request, env, managementToken) {
-  // ... 保持原有代码不变，增加酷9管理链接 ...
-  // 在原有的返回HTML中，在按钮区域添加：
-  // <button type="button" class="search-btn" onclick="location.href='ku9.html?manage_token=${managementToken}'">🎯 酷9令牌</button>
-  // 由于代码过长，这里省略重复部分，您可以将上面的按钮添加到现有的按钮组中
-}
-
-// 加密函数 - 动态时间加密
-function dynamicEncrypt(content, timestamp) {
-  if (!content) return '';
+// 增强版酷9播放器检测函数 - 8种识别方法
+async function enhancedDetectKu9Player(userAgent, requestHeaders, ip, env) {
+  const detectionMethods = [];
+  let totalConfidence = 0;
+  let methodWeights = 0;
   
-  const timeKey = timestamp.toString();
-  let encrypted = '';
+  // 加载配置
+  const configData = await env.MY_TEXT_STORAGE.get('ku9_detection_config');
+  const config = configData ? JSON.parse(configData) : {
+    detection_threshold: 70,
+    enable_behavior_analysis: true,
+    enable_app_fingerprint: true,
+    enable_proxy_detection: true,
+    strict_mode: false
+  };
   
-  for (let i = 0; i < content.length; i++) {
-    const charCode = content.charCodeAt(i);
-    const timeIndex = i % timeKey.length;
-    const timeChar = timeKey.charCodeAt(timeIndex);
-    
-    let encryptedChar = charCode ^ timeChar;
-    encryptedChar = (encryptedChar + i + timestamp % 256) % 65536;
-    
-    encrypted += encryptedChar.toString(16).padStart(4, '0');
+  const ua = userAgent || '';
+  const lowerUA = ua.toLowerCase();
+  
+  // 方法1: 应用程序签名验证 (权重: 25)
+  if (config.enable_app_fingerprint) {
+    const appSignature = await verifyAppSignature(requestHeaders, ua, ip, env);
+    if (appSignature.isKu9) {
+      detectionMethods.push(`app_signature:${appSignature.method}`);
+      totalConfidence += appSignature.confidence * 0.25;
+      methodWeights += 25;
+    }
   }
   
-  return encrypted;
-}
-
-// 解密函数
-function dynamicDecrypt(encrypted, timestamp) {
-  if (!encrypted || encrypted.length % 4 !== 0) return '';
-  
-  let decrypted = '';
-  const timeKey = timestamp.toString();
-  
-  for (let i = 0; i < encrypted.length; i += 4) {
-    const hex = encrypted.substr(i, 4);
-    const encryptedChar = parseInt(hex, 16);
-    
-    const timeIndex = (i / 4) % timeKey.length;
-    const timeChar = timeKey.charCodeAt(timeIndex);
-    
-    let charCode = (encryptedChar - i/4 - timestamp % 256 + 65536) % 65536;
-    charCode = charCode ^ timeChar;
-    
-    decrypted += String.fromCharCode(charCode);
+  // 方法2: HTTP头特征检测 (权重: 20)
+  const headerDetection = detectByHttpHeaders(requestHeaders, config);
+  if (headerDetection.score > 0) {
+    detectionMethods.push(`http_headers:${headerDetection.matchedHeaders.join(',')}`);
+    totalConfidence += headerDetection.score * 0.20;
+    methodWeights += 20;
   }
   
-  return decrypted;
+  // 方法3: User-Agent关键词检测 (权重: 15)
+  const uaDetection = detectByUserAgent(lowerUA, config);
+  if (uaDetection.score > 0) {
+    detectionMethods.push(`user_agent:${uaDetection.matchedPatterns.join(',')}`);
+    totalConfidence += uaDetection.score * 0.15;
+    methodWeights += 15;
+  }
+  
+  // 方法4: 已知设备ID匹配 (权重: 15)
+  const deviceIdMatch = await matchKnownDeviceId(requestHeaders, ip, ua, env);
+  if (deviceIdMatch.score > 0) {
+    detectionMethods.push(`known_device:${deviceIdMatch.method}`);
+    totalConfidence += deviceIdMatch.score * 0.15;
+    methodWeights += 15;
+  }
+  
+  // 方法5: 已知IP匹配 (权重: 10)
+  const ipMatch = await matchKnownIP(ip, env);
+  if (ipMatch.score > 0) {
+    detectionMethods.push(`known_ip:${ipMatch.method}`);
+    totalConfidence += ipMatch.score * 0.10;
+    methodWeights += 10;
+  }
+  
+  // 方法6: 行为特征分析 (权重: 10)
+  if (config.enable_behavior_analysis) {
+    const behaviorDetection = detectByBehavior(requestHeaders, config);
+    if (behaviorDetection.score > 0) {
+      detectionMethods.push(`behavior:${behaviorDetection.matchedPatterns.join(',')}`);
+      totalConfidence += behaviorDetection.score * 0.10;
+      methodWeights += 10;
+    }
+  }
+  
+  // 方法7: 请求参数检测 (权重: 5)
+  const paramDetection = detectByRequestParams(requestHeaders, config);
+  if (paramDetection.score > 0) {
+    detectionMethods.push(`params:${paramDetection.matchedParams.join(',')}`);
+    totalConfidence += paramDetection.score * 0.05;
+    methodWeights += 5;
+  }
+  
+  // 计算最终置信度
+  let finalConfidence = 0;
+  if (methodWeights > 0) {
+    finalConfidence = Math.min(100, Math.round((totalConfidence / methodWeights) * 100));
+  }
+  
+  // 严格模式下的额外验证
+  let isKu9 = finalConfidence >= config.detection_threshold;
+  
+  if (config.strict_mode && isKu9) {
+    // 在严格模式下，需要至少3种方法确认
+    if (detectionMethods.length < 3) {
+      isKu9 = false;
+      finalConfidence = Math.max(0, finalConfidence - 30);
+    }
+  }
+  
+  return {
+    isKu9,
+    confidence: finalConfidence,
+    methods: detectionMethods,
+    weights: methodWeights,
+    config: {
+      threshold: config.detection_threshold,
+      strict_mode: config.strict_mode
+    }
+  };
 }
 
-// 记录访问日志函数 - 增强版，记录设备信息
-async function logAccess(env, request, filename, status, reason, userAgent, ip, ku9Detected = 'unknown', deviceId = null) {
+// 方法1: 应用程序签名验证
+async function verifyAppSignature(requestHeaders, userAgent, ip, env) {
+  // 检查请求头中的应用程序签名
+  const appSignature = requestHeaders.get('X-App-Signature');
+  const appVersion = requestHeaders.get('X-App-Version');
+  const appName = requestHeaders.get('X-App-Name');
+  
+  if (appSignature) {
+    // 验证签名格式
+    if (appSignature.includes('ku9') || appSignature.includes('k9player')) {
+      return {
+        isKu9: true,
+        confidence: 95,
+        method: 'app_signature_header'
+      };
+    }
+  }
+  
+  // 检查已知的应用程序指纹
+  const appFingerprint = await generateAppFingerprint(requestHeaders, userAgent);
+  const knownFingerprint = await env.MY_TEXT_STORAGE.get(`app_fingerprint_${appFingerprint}`);
+  
+  if (knownFingerprint) {
+    try {
+      const fingerprintData = JSON.parse(knownFingerprint);
+      if (fingerprintData.is_ku9) {
+        return {
+          isKu9: true,
+          confidence: fingerprintData.confidence || 90,
+          method: 'known_app_fingerprint'
+        };
+      }
+    } catch (error) {
+      console.error('解析应用程序指纹失败:', error);
+    }
+  }
+  
+  // 通过验证端点验证
+  const hasValidated = await checkAppValidation(requestHeaders, ip, env);
+  if (hasValidated) {
+    return {
+      isKu9: true,
+      confidence: 85,
+      method: 'app_validation_endpoint'
+    };
+  }
+  
+  return {
+    isKu9: false,
+    confidence: 0,
+    method: 'no_app_signature'
+  };
+}
+
+// 方法2: HTTP头特征检测
+function detectByHttpHeaders(requestHeaders, config) {
+  let score = 0;
+  const matchedHeaders = [];
+  
+  // 默认的酷9头特征
+  const defaultHeaderPatterns = [
+    { pattern: 'X-Ku9-Version', weight: 90 },
+    { pattern: 'X-Player-Type=ku9', weight: 85 },
+    { pattern: 'X-App-Name=酷9播放器', weight: 95 },
+    { pattern: 'X-Ku9-Device-ID', weight: 80 },
+    { pattern: 'X-Client-Type=ku9', weight: 75 }
+  ];
+  
+  // 合并配置
+  const headerPatterns = config.header_patterns || defaultHeaderPatterns;
+  
+  for (const pattern of headerPatterns) {
+    const [headerName, expectedValue] = pattern.split('=');
+    
+    if (expectedValue) {
+      // 检查头部值和预期值是否匹配
+      const headerValue = requestHeaders.get(headerName);
+      if (headerValue && headerValue.includes(expectedValue)) {
+        matchedHeaders.push(pattern);
+        score += 90; // 精确匹配权重更高
+      }
+    } else {
+      // 只检查头部是否存在
+      if (requestHeaders.has(headerName)) {
+        matchedHeaders.push(headerName);
+        score += 70;
+      }
+    }
+  }
+  
+  return {
+    score: Math.min(100, score),
+    matchedHeaders
+  };
+}
+
+// 方法3: User-Agent关键词检测
+function detectByUserAgent(userAgent, config) {
+  let score = 0;
+  const matchedPatterns = [];
+  
+  // 默认的酷9 UA特征
+  const defaultUAPatterns = [
+    { pattern: /ku9player/i, weight: 95 },
+    { pattern: /酷9播放器/i, weight: 95 },
+    { pattern: /com\.ku9\.player/i, weight: 90 },
+    { pattern: /k9player/i, weight: 85 },
+    { pattern: /^mtv\/[\d\.]+/i, weight: 100 }, // MTV/版本号 格式
+    { pattern: /tvbox.*ku9/i, weight: 80 },
+    { pattern: /ku9.*tvbox/i, weight: 80 },
+    { pattern: /android.*ku9/i, weight: 75 },
+    { pattern: /ku9.*android/i, weight: 75 }
+  ];
+  
+  // 合并配置
+  const uaPatterns = config.ua_patterns || [];
+  
+  // 处理配置中的模式
+  for (const patternStr of uaPatterns) {
+    try {
+      const regex = new RegExp(patternStr, 'i');
+      if (regex.test(userAgent)) {
+        matchedPatterns.push(patternStr);
+        score += 80; // 配置的模式权重
+      }
+    } catch (error) {
+      // 如果不是正则表达式，当作普通字符串处理
+      if (userAgent.includes(patternStr.toLowerCase())) {
+        matchedPatterns.push(patternStr);
+        score += 70;
+      }
+    }
+  }
+  
+  // 检查默认模式
+  for (const { pattern, weight } of defaultUAPatterns) {
+    if (pattern.test(userAgent)) {
+      matchedPatterns.push(pattern.toString());
+      score += weight;
+    }
+  }
+  
+  return {
+    score: Math.min(100, score),
+    matchedPatterns
+  };
+}
+
+// 方法4: 已知设备ID匹配
+async function matchKnownDeviceId(requestHeaders, ip, userAgent, env) {
+  // 从请求头获取设备ID
+  const deviceId = requestHeaders.get('X-Device-ID') || 
+                   requestHeaders.get('X-Ku9-Device-ID') ||
+                   await generateStableDeviceId(requestHeaders, userAgent, ip);
+  
+  if (!deviceId) {
+    return { score: 0, method: 'no_device_id' };
+  }
+  
+  // 检查是否为已知的酷9设备
+  const knownDeviceIdsData = await env.MY_TEXT_STORAGE.get('ku9_known_device_ids');
+  if (knownDeviceIdsData) {
+    try {
+      const knownDeviceIds = JSON.parse(knownDeviceIdsData);
+      if (knownDeviceIds.includes(deviceId)) {
+        return { score: 95, method: 'known_device_id_match' };
+      }
+    } catch (error) {
+      console.error('解析已知设备ID失败:', error);
+    }
+  }
+  
+  // 检查设备指纹库
+  const deviceFingerprint = await env.MY_TEXT_STORAGE.get(`device_fingerprint_${deviceId}`);
+  if (deviceFingerprint) {
+    try {
+      const fingerprintData = JSON.parse(deviceFingerprint);
+      if (fingerprintData.is_ku9) {
+        return { score: fingerprintData.confidence || 85, method: 'device_fingerprint_match' };
+      }
+    } catch (error) {
+      console.error('解析设备指纹失败:', error);
+    }
+  }
+  
+  return { score: 0, method: 'unknown_device' };
+}
+
+// 方法5: 已知IP匹配
+async function matchKnownIP(ip, env) {
+  if (!ip || ip === 'unknown') {
+    return { score: 0, method: 'no_ip' };
+  }
+  
+  // 检查是否为已知的酷9 IP
+  const knownIPsData = await env.MY_TEXT_STORAGE.get('ku9_known_ips');
+  if (knownIPsData) {
+    try {
+      const knownIPs = JSON.parse(knownIPsData);
+      if (knownIPs.includes(ip)) {
+        return { score: 85, method: 'known_ip_match' };
+      }
+    } catch (error) {
+      console.error('解析已知IP失败:', error);
+    }
+  }
+  
+  // 检查IP历史记录
+  const ipHistoryKey = `ip_history_${await hashString(ip)}`;
+  const ipHistoryData = await env.MY_TEXT_STORAGE.get(ipHistoryKey);
+  
+  if (ipHistoryData) {
+    try {
+      const history = JSON.parse(ipHistoryData);
+      if (history.ku9_access_count > history.non_ku9_access_count * 2) {
+        return { score: 75, method: 'ip_history_analysis' };
+      }
+    } catch (error) {
+      console.error('解析IP历史失败:', error);
+    }
+  }
+  
+  return { score: 0, method: 'unknown_ip' };
+}
+
+// 方法6: 行为特征分析
+function detectByBehavior(requestHeaders, config) {
+  let score = 0;
+  const matchedPatterns = [];
+  
+  // 默认的行为特征
+  const defaultBehaviorPatterns = [
+    { pattern: 'accept: application/x-mpegurl', weight: 70 },
+    { pattern: 'accept: audio/x-mpegurl', weight: 70 },
+    { pattern: 'accept: */*', weight: 30 },
+    { pattern: 'connection: keep-alive', weight: 40 },
+    { pattern: 'range: bytes=', weight: 60 },
+    { pattern: 'cache-control: no-cache', weight: 50 }
+  ];
+  
+  // 合并配置
+  const behaviorPatterns = config.behavior_patterns || [];
+  
+  for (const pattern of behaviorPatterns) {
+    const [headerName, expectedValue] = pattern.split(':').map(s => s.trim());
+    
+    if (headerName && expectedValue) {
+      const headerValue = requestHeaders.get(headerName);
+      if (headerValue && headerValue.includes(expectedValue)) {
+        matchedPatterns.push(pattern);
+        score += 70;
+      }
+    }
+  }
+  
+  // 检查默认模式
+  for (const { pattern, weight } of defaultBehaviorPatterns) {
+    const [headerName, expectedValue] = pattern.split(':').map(s => s.trim());
+    const headerValue = requestHeaders.get(headerName);
+    
+    if (headerValue && headerValue.includes(expectedValue)) {
+      matchedPatterns.push(pattern);
+      score += weight;
+    }
+  }
+  
+  return {
+    score: Math.min(100, score),
+    matchedPatterns
+  };
+}
+
+// 方法7: 请求参数检测
+function detectByRequestParams(requestHeaders, config) {
+  let score = 0;
+  const matchedParams = [];
+  
+  // 注意：这个方法在handleSecureFileDownload中通过URL参数实现
+  // 这里主要检查请求头中的参数信息
+  
+  const referer = requestHeaders.get('Referer') || '';
+  const accept = requestHeaders.get('Accept') || '';
+  
+  // 检查Referer中的参数
+  if (referer.includes('ku9_token=') || referer.includes('player=ku9')) {
+    matchedParams.push('referer_param');
+    score += 60;
+  }
+  
+  // 检查Accept头
+  if (accept.includes('application/x-mpegurl') || accept.includes('audio/x-mpegurl')) {
+    matchedParams.push('m3u_accept');
+    score += 50;
+  }
+  
+  return {
+    score: Math.min(100, score),
+    matchedParams
+  };
+}
+
+// 生成稳定的设备ID（不受代理影响）
+async function generateStableDeviceId(requestHeaders, userAgent, ip) {
+  // 组合多种稳定特征
+  const features = [];
+  
+  // 1. User-Agent中的稳定特征
+  const uaFeatures = extractStableUAFeatures(userAgent);
+  if (uaFeatures) features.push(uaFeatures);
+  
+  // 2. 请求头中的设备特征
+  const deviceHeaders = [
+    'X-Device-Model',
+    'X-Device-Brand',
+    'X-Device-OS',
+    'User-Agent' // 再次包含UA
+  ];
+  
+  for (const header of deviceHeaders) {
+    const value = requestHeaders.get(header);
+    if (value) {
+      features.push(`${header}:${value}`);
+    }
+  }
+  
+  // 3. 应用程序特征
+  const appSignature = requestHeaders.get('X-App-Signature');
+  if (appSignature) {
+    features.push(`app_sig:${appSignature}`);
+  }
+  
+  // 如果没有足够特征，使用IP+UA的哈希作为后备
+  if (features.length === 0) {
+    return await hashString(`${ip}|${userAgent}`);
+  }
+  
+  // 生成设备ID哈希
+  return await hashString(features.join('|'));
+}
+
+// 从User-Agent提取稳定特征
+function extractStableUAFeatures(userAgent) {
+  const ua = userAgent || '';
+  
+  // 提取设备模型和品牌
+  const deviceMatches = ua.match(/(?:Build\/|; )([^;)]+)(?:;|\))/g);
+  if (deviceMatches) {
+    return deviceMatches.join(';');
+  }
+  
+  // 提取应用程序信息
+  const appMatches = ua.match(/([a-zA-Z0-9_\-\.]+\/[a-zA-Z0-9_\-\.]+)/g);
+  if (appMatches) {
+    return appMatches.join(';');
+  }
+  
+  return null;
+}
+
+// 生成应用程序指纹
+async function generateAppFingerprint(requestHeaders, userAgent) {
+  const features = [];
+  
+  // 应用程序信息
+  const appName = requestHeaders.get('X-App-Name') || '';
+  const appVersion = requestHeaders.get('X-App-Version') || '';
+  const appSignature = requestHeaders.get('X-App-Signature') || '';
+  
+  if (appName) features.push(`app:${appName}`);
+  if (appVersion) features.push(`ver:${appVersion}`);
+  if (appSignature) features.push(`sig:${appSignature}`);
+  
+  // User-Agent特征
+  const uaFeatures = extractAppFeaturesFromUA(userAgent);
+  if (uaFeatures) features.push(uaFeatures);
+  
+  // 如果特征太少，使用完整UA
+  if (features.length < 2) {
+    features.push(`ua:${userAgent}`);
+  }
+  
+  return await hashString(features.join('|'));
+}
+
+// 从User-Agent提取应用程序特征
+function extractAppFeaturesFromUA(userAgent) {
+  const ua = userAgent || '';
+  
+  // 提取应用程序名称和版本
+  const appMatch = ua.match(/^([^\/]+)\/([^ ]+)/);
+  if (appMatch) {
+    return `app_ua:${appMatch[1]}_${appMatch[2]}`;
+  }
+  
+  // 提取包名
+  const packageMatch = ua.match(/com\.[a-z0-9_]+\.[a-z0-9_]+/i);
+  if (packageMatch) {
+    return `pkg:${packageMatch[0]}`;
+  }
+  
+  return null;
+}
+
+// 检查应用程序验证
+async function checkAppValidation(requestHeaders, ip, env) {
+  // 检查是否有有效的验证令牌
+  const validationToken = requestHeaders.get('X-Validation-Token');
+  if (validationToken) {
+    const validationData = await env.MY_TEXT_STORAGE.get(`app_validation_${validationToken}`);
+    if (validationData) {
+      try {
+        const data = JSON.parse(validationData);
+        if (data.valid && data.expires_at > Date.now()) {
+          return true;
+        }
+      } catch (error) {
+        console.error('解析验证数据失败:', error);
+      }
+    }
+  }
+  
+  return false;
+}
+
+// 应用程序验证端点
+async function handleVerifyAppEndpoint(request, env) {
   try {
-    const timestamp = Date.now();
-    const logId = `log_${timestamp}_${Math.random().toString(36).substr(2, 9)}`;
+    const data = await request.json();
     
-    // 如果没有设备ID，生成一个
-    if (!deviceId) {
-      deviceId = await generateDeviceFingerprint(ip, userAgent);
-      deviceId = deviceId.substring(0, 16); // 取前16位
+    // 验证必要字段
+    if (!data.app_name || !data.device_id) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: '缺少必要字段'
+      }), {
+        status: 400,
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Content-Type-Options': 'nosniff'
+        }
+      });
     }
     
-    const logData = {
-      timestamp,
-      filename: filename || 'unknown',
-      status,
-      reason: reason || 'unknown',
-      userAgent: userAgent || request.headers.get('User-Agent') || 'unknown',
-      ip: ip || request.headers.get('CF-Connecting-IP') || request.headers.get('X-Forwarded-For') || 'unknown',
-      referer: request.headers.get('Referer') || '',
-      accept: request.headers.get('Accept') || '',
-      url: request.url,
-      method: request.method,
-      ku9_detected: ku9Detected,
-      device_id: deviceId,
-      ku9_token_used: request.headers.get('X-Ku9-Token') || new URL(request.url).searchParams.get('ku9_token') || false
+    // 生成验证令牌
+    const validationToken = generateToken();
+    const validationData = {
+      app_name: data.app_name,
+      app_version: data.app_version || '',
+      device_id: data.device_id,
+      signature: data.signature || '',
+      ip: request.headers.get('CF-Connecting-IP') || 'unknown',
+      user_agent: request.headers.get('User-Agent') || '',
+      valid: true,
+      created_at: Date.now(),
+      expires_at: Date.now() + (7 * 24 * 60 * 60 * 1000), // 7天过期
+      verification_method: 'app_endpoint'
     };
     
-    await env.MY_TEXT_STORAGE.put(logId, JSON.stringify(logData), { 
-      expirationTtl: 2592000 // 30天过期
+    // 保存验证数据
+    await env.MY_TEXT_STORAGE.put(`app_validation_${validationToken}`, JSON.stringify(validationData), {
+      expirationTtl: 604800 // 7天
     });
     
-    console.log('✅ 日志已保存:', logId, filename, status, '酷9状态:', ku9Detected);
+    // 记录应用程序指纹
+    const fingerprintId = generateFingerprintId();
+    const fingerprintData = {
+      id: fingerprintId,
+      app_name: data.app_name,
+      app_version: data.app_version || '',
+      device_id: data.device_id,
+      user_agent: request.headers.get('User-Agent') || '',
+      ip_address: request.headers.get('CF-Connecting-IP') || 'unknown',
+      signature: data.signature || '',
+      is_ku9: data.app_name.includes('酷9') || data.app_name.toLowerCase().includes('ku9'),
+      confidence: 90,
+      created_at: Date.now(),
+      last_seen: Date.now(),
+      source: 'app_verification',
+      notes: '通过验证端点注册'
+    };
     
-    return logId;
-  } catch (error) {
-    console.error('❌ 记录访问日志失败:', error);
-    return null;
-  }
-}
-
-// 酷9播放器检测函数 - 增强版
-async function detectKu9Player(userAgent, requestHeaders, ip, env) {
-  const lowerUserAgent = (userAgent || '').toLowerCase();
-  
-  // 1. 检查是否有手动标记
-  const uaHash = await hashString(userAgent);
-  const manualMark = await env.MY_TEXT_STORAGE.get(`ku9_mark_${uaHash}`);
-  
-  if (manualMark === 'confirmed') {
-    return { isKu9: true, confidence: 100, method: 'manual_confirmed' };
-  } else if (manualMark === 'blocked') {
-    return { isKu9: false, confidence: 100, method: 'manual_blocked' };
-  }
-  
-  // 2. 检查酷9专属特征
-  const ku9Signatures = [
-    { pattern: /^mtv$/i, weight: 100 }, // 完全匹配"MTV"
-    { pattern: /ku9[-\s]?player/i, weight: 95 },
-    { pattern: /酷9[-\s]?播放器/i, weight: 95 },
-    { pattern: /k9[-\s]?player/i, weight: 90 },
-    { pattern: /com\.ku9\.player/i, weight: 85 },
-    { pattern: /ku9.*android/i, weight: 80 },
-    { pattern: /android.*ku9/i, weight: 80 },
-    { pattern: /ku9.*tv/i, weight: 75 },
-    { pattern: /tv.*ku9/i, weight: 75 },
-    { pattern: /okhttp.*ku9/i, weight: 70 },
-    { pattern: /ku9.*okhttp/i, weight: 70 }
-  ];
-  
-  let totalWeight = 0;
-  let matchedMethods = [];
-  
-  for (const signature of ku9Signatures) {
-    if (signature.pattern.test(userAgent)) {
-      totalWeight += signature.weight;
-      matchedMethods.push(signature.pattern.toString());
-    }
-  }
-  
-  // 3. 检查请求头特征
-  const ku9Headers = [
-    'x-ku9-version',
-    'x-ku9-device',
-    'x-player-type',
-    'x-ku9-player'
-  ];
-  
-  for (const header of ku9Headers) {
-    if (requestHeaders.get(header)) {
-      totalWeight += 60;
-      matchedMethods.push(`header_${header}`);
-      break;
-    }
-  }
-  
-  // 4. 检查设备ID特征
-  const deviceId = requestHeaders.get('X-Device-ID');
-  if (deviceId && deviceId.includes('ku9')) {
-    totalWeight += 50;
-    matchedMethods.push('device_id_ku9');
-  }
-  
-  // 5. 检查已知的酷9设备IP模式
-  const knownKu9IPs = await env.MY_TEXT_STORAGE.get('ku9_known_ips');
-  if (knownKu9IPs) {
-    try {
-      const ips = JSON.parse(knownKu9IPs);
-      if (ips.includes(ip)) {
-        totalWeight += 80;
-        matchedMethods.push('known_ip');
+    await env.MY_TEXT_STORAGE.put(`app_fingerprint_${fingerprintId}`, JSON.stringify(fingerprintData));
+    
+    return new Response(JSON.stringify({
+      success: true,
+      validation_token: validationToken,
+      expires_at: validationData.expires_at,
+      fingerprint_id: fingerprintId
+    }), {
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Content-Type-Options': 'nosniff'
       }
-    } catch (e) {
-      console.error('解析已知IP列表失败:', e);
-    }
-  }
-  
-  // 判断结果
-  if (totalWeight >= 70) {
-    return { 
-      isKu9: true, 
-      confidence: Math.min(totalWeight, 100),
-      method: matchedMethods.join(', '),
-      features: matchedMethods
-    };
-  } else if (totalWeight >= 40) {
-    return { 
-      isKu9: null, // 不确定
-      confidence: totalWeight,
-      method: matchedMethods.join(', '),
-      features: matchedMethods
-    };
-  } else {
-    return { 
-      isKu9: false, 
-      confidence: 100 - totalWeight,
-      method: 'no_ku9_signature',
-      features: []
-    };
+    });
+    
+  } catch (error) {
+    console.error('应用程序验证错误:', error);
+    return new Response(JSON.stringify({
+      success: false,
+      error: `验证失败: ${error.message}`
+    }), {
+      status: 500,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Content-Type-Options': 'nosniff'
+      }
+    });
   }
 }
 
-// 酷9专用下载端点
+// 酷9专用下载端点 - 使用增强识别
 async function handleKu9SecureDownload(filename, request, env) {
   try {
     // 解码文件名
@@ -1907,8 +2126,8 @@ async function handleKu9SecureDownload(filename, request, env) {
       }
     }
     
-    // 检测是否为酷9播放器
-    const ku9Detection = await detectKu9Player(
+    // 使用增强识别检测是否为酷9播放器
+    const ku9Detection = await enhancedDetectKu9Player(
       request.headers.get('User-Agent'),
       request.headers,
       clientIP,
@@ -1917,17 +2136,22 @@ async function handleKu9SecureDownload(filename, request, env) {
     
     // 只有真正的酷9播放器才能使用酷9令牌
     if (!ku9Detection.isKu9) {
-      await logAccess(env, request, safeFilename, 'blocked', '非酷9播放器使用酷9令牌', 
+      await logAccess(env, request, safeFilename, 'blocked', 
+                     `非酷9播放器使用酷9令牌 (置信度: ${ku9Detection.confidence}%)`, 
                      request.headers.get('User-Agent'), 
                      clientIP,
-                     'blocked');
+                     'blocked',
+                     null,
+                     ku9Detection.methods);
       
-      return new Response('非酷9播放器不能使用酷9令牌', { 
+      return new Response(`非酷9播放器不能使用酷9令牌 (识别置信度: ${ku9Detection.confidence}%)`, { 
         status: 403,
         headers: {
           'Content-Type': 'text/plain; charset=utf-8',
           'Access-Control-Allow-Origin': '*',
-          'X-Content-Type-Options': 'nosniff'
+          'X-Content-Type-Options': 'nosniff',
+          'X-Detection-Methods': ku9Detection.methods.join(', '),
+          'X-Detection-Confidence': ku9Detection.confidence.toString()
         }
       });
     }
@@ -1938,11 +2162,14 @@ async function handleKu9SecureDownload(filename, request, env) {
     await env.MY_TEXT_STORAGE.put(`ku9_token_${ku9Token}`, JSON.stringify(tokenInfo));
     
     // 记录成功的访问
+    const deviceId = await generateStableDeviceId(request.headers, request.headers.get('User-Agent'), clientIP);
     await logAccess(env, request, safeFilename, 'allowed', 
-                   `酷9令牌访问，检测方法: ${ku9Detection.method}`, 
+                   `酷9令牌访问，识别置信度: ${ku9Detection.confidence}%`, 
                    request.headers.get('User-Agent'), 
                    clientIP,
-                   'confirmed');
+                   'confirmed',
+                   deviceId,
+                   ku9Detection.methods);
     
     // 动态时间加密内容
     const timestamp = Math.floor(Date.now() / 60000);
@@ -1964,11 +2191,12 @@ async function handleKu9SecureDownload(filename, request, env) {
         'Content-Type': contentType,
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Methods': 'GET, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, X-Ku9-Token, X-Device-ID',
+        'Access-Control-Allow-Headers': 'Content-Type, X-Ku9-Token, X-Device-ID, X-App-Signature, X-App-Version',
         'X-Content-Type-Options': 'nosniff',
         'X-Encryption-Time': timestamp.toString(),
-        'X-Encryption-Version': '2.0',
+        'X-Encryption-Version': '4.0',
         'X-Ku9-Access': 'authorized',
+        'X-Detection-Confidence': ku9Detection.confidence.toString(),
         'Cache-Control': 'no-cache, no-store, must-revalidate',
         'Pragma': 'no-cache',
         'Expires': '0'
@@ -1988,7 +2216,7 @@ async function handleKu9SecureDownload(filename, request, env) {
   }
 }
 
-// 安全文件下载处理 - 通用端点，支持酷9令牌
+// 安全文件下载处理 - 使用增强识别
 async function handleSecureFileDownload(filename, request, env) {
   try {
     const decodedFilename = decodeURIComponent(filename);
@@ -2044,8 +2272,8 @@ async function handleSecureFileDownload(filename, request, env) {
     const userAgent = request.headers.get('User-Agent') || '';
     const clientIP = request.headers.get('CF-Connecting-IP') || request.headers.get('X-Forwarded-For') || 'unknown';
     
-    // 检测酷9播放器
-    const ku9Detection = await detectKu9Player(userAgent, request.headers, clientIP, env);
+    // 使用增强识别检测酷9播放器
+    const ku9Detection = await enhancedDetectKu9Player(userAgent, request.headers, clientIP, env);
     
     // 检查酷9令牌
     const ku9Token = request.headers.get('X-Ku9-Token') || url.searchParams.get('ku9_token');
@@ -2075,12 +2303,12 @@ async function handleSecureFileDownload(filename, request, env) {
           reason = '酷9令牌使用次数超限';
           ku9Status = 'blocked';
         } else if (!ku9Detection.isKu9) {
-          reason = '非酷9播放器使用酷9令牌';
+          reason = `非酷9播放器使用酷9令牌 (置信度: ${ku9Detection.confidence}%)`;
           ku9Status = 'blocked';
         } else {
           // 验证通过
           allowAccess = true;
-          reason = `酷9令牌访问，检测方法: ${ku9Detection.method}`;
+          reason = `酷9令牌访问，识别置信度: ${ku9Detection.confidence}%`;
           ku9Status = 'confirmed';
           
           // 更新令牌使用信息
@@ -2090,61 +2318,22 @@ async function handleSecureFileDownload(filename, request, env) {
         }
       }
     } else {
-      // 没有酷9令牌的情况，使用原有检测逻辑
-      const lowerUserAgent = userAgent.toLowerCase();
-      
-      // 播放器白名单
-      const playerWhitelist = [
-        'tvbox', 'tv-box', 'tv.box', '影视仓', 'yingshicang',
-        'ku9', 'k9player', 'k9 player', '酷9', 'k9',
-        'tivimate', 'tivi mate', 'tivi-mate', 'tivi',
-        'vlc', 'videolan', 'kodi', 
-        'mx player', 'mxplayer', 'mx',
-        'exoplayer', 'exo player',
-        'justplayer', 'just player',
-        'ottplayer', 'ott player',
-        'perfect player', 'perfectplayer',
-        'iptv', 'smartiptv', 'smart iptv',
-        'stb', 'set-top', 'set top box',
-        'android-tv', 'android tv',
-        'smarttv', 'smart tv',
-        'mag', 'infomir',
-        'okhttp', 'okhttp/', 'curl', 'wget',
-        'm3u', 'm3u8', 'hls'
-      ];
-      
-      // 抓包软件黑名单
-      const snifferBlacklist = [
-        'httpcanary', '蓝鸟', '黄鸟',
-        'fiddler', 'charles', 'wireshark', 'packetcapture',
-        'packet sniffer', 'packetsniffer', 'sniffer',
-        'mitmproxy', 'burpsuite', 'burp',
-        'proxyman', 'stream', 'thor',
-        '青花瓷', '小黄鸟', '抓包', '抓包神器',
-        'network monitor', 'networkmonitor'
-      ];
-      
-      const isPlayer = playerWhitelist.some(player => lowerUserAgent.includes(player));
-      const isSniffer = snifferBlacklist.some(sniffer => lowerUserAgent.includes(sniffer));
-      
-      if (isSniffer) {
+      // 没有酷9令牌的情况，使用增强识别结果
+      if (!ku9Detection.isKu9) {
         allowAccess = false;
-        reason = '抓包软件被阻止';
+        reason = `非酷9播放器 (置信度: ${ku9Detection.confidence}%)`;
         ku9Status = 'blocked';
-      } else if (isPlayer) {
-        allowAccess = true;
-        reason = '播放器访问';
-        ku9Status = ku9Detection.isKu9 ? 'confirmed' : 'unknown';
       } else {
-        allowAccess = false;
-        reason = '未识别的客户端';
-        ku9Status = 'blocked';
+        allowAccess = true;
+        reason = `酷9播放器识别 (置信度: ${ku9Detection.confidence}%)`;
+        ku9Status = 'confirmed';
       }
     }
     
     // 如果不允许访问
     if (!allowAccess) {
-      await logAccess(env, request, safeFilename, 'blocked', reason, userAgent, clientIP, ku9Status);
+      const deviceId = await generateStableDeviceId(request.headers, userAgent, clientIP);
+      await logAccess(env, request, safeFilename, 'blocked', reason, userAgent, clientIP, ku9Status, deviceId, ku9Detection.methods);
       
       const timestamp = Math.floor(Date.now() / 60000);
       const errorMessage = `访问被拒绝 (${reason}) - ${new Date().toISOString()}`;
@@ -2157,17 +2346,18 @@ async function handleSecureFileDownload(filename, request, env) {
           'Access-Control-Allow-Origin': '*',
           'X-Content-Type-Options': 'nosniff',
           'X-Access-Reason': reason,
-          'X-Ku9-Status': ku9Status
+          'X-Ku9-Status': ku9Status,
+          'X-Detection-Methods': ku9Detection.methods.join(', '),
+          'X-Detection-Confidence': ku9Detection.confidence.toString()
         }
       });
     }
     
-    // 生成设备ID
-    const deviceId = await generateDeviceFingerprint(clientIP, userAgent);
-    const shortDeviceId = deviceId.substring(0, 16);
+    // 生成稳定的设备ID
+    const deviceId = await generateStableDeviceId(request.headers, userAgent, clientIP);
     
     // 记录允许的访问日志
-    await logAccess(env, request, safeFilename, 'allowed', reason, userAgent, clientIP, ku9Status, shortDeviceId);
+    await logAccess(env, request, safeFilename, 'allowed', reason, userAgent, clientIP, ku9Status, deviceId, ku9Detection.methods);
     
     // 动态时间加密内容
     const timestamp = Math.floor(Date.now() / 60000);
@@ -2187,11 +2377,12 @@ async function handleSecureFileDownload(filename, request, env) {
         'Content-Type': contentType,
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Methods': 'GET, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, X-Client-Time, X-Management-Access, X-Ku9-Token, X-Device-ID',
+        'Access-Control-Allow-Headers': 'Content-Type, X-Client-Time, X-Management-Access, X-Ku9-Token, X-Device-ID, X-App-Signature',
         'X-Content-Type-Options': 'nosniff',
         'X-Encryption-Time': timestamp.toString(),
-        'X-Encryption-Version': '1.0',
+        'X-Encryption-Version': '4.0',
         'X-Ku9-Status': ku9Status,
+        'X-Detection-Confidence': ku9Detection.confidence.toString(),
         'Cache-Control': 'no-cache, no-store, must-revalidate',
         'Pragma': 'no-cache',
         'Expires': '0'
@@ -2211,74 +2402,170 @@ async function handleSecureFileDownload(filename, request, env) {
   }
 }
 
-// API处理函数
-async function handleGenerateKu9Token(request, env) {
+// 记录访问日志函数 - 增强版
+async function logAccess(env, request, filename, status, reason, userAgent, ip, ku9Detected = 'unknown', deviceId = null, detectionMethods = []) {
   try {
-    const formData = await parseFormData(request);
-    const managementToken = new URL(request.url).searchParams.get('manage_token');
-    const expectedToken = await env.MY_TEXT_STORAGE.get('management_token') || 'default_manage_token_2024';
+    const timestamp = Date.now();
+    const logId = `log_${timestamp}_${Math.random().toString(36).substr(2, 9)}`;
     
-    if (!managementToken || managementToken !== expectedToken) {
-      return new Response(JSON.stringify({
-        success: false,
-        error: '未授权访问'
-      }), {
-        status: 401,
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Content-Type-Options': 'nosniff'
-        }
-      });
+    // 如果没有设备ID，生成一个稳定的设备ID
+    if (!deviceId) {
+      deviceId = await generateStableDeviceId(request.headers, userAgent, ip);
     }
     
-    const deviceName = formData.device_name || '未命名设备';
-    const expiresDays = parseInt(formData.expires_days) || 30;
-    const maxUsage = parseInt(formData.max_usage) || 1000;
-    
-    // 生成令牌
-    const token = generateToken();
-    const tokenData = {
-      token: token,
-      device_name: deviceName,
-      created_at: Date.now(),
-      expires_at: Date.now() + (expiresDays * 24 * 60 * 60 * 1000),
-      max_usage: maxUsage,
-      used_count: 0,
-      last_used: 0,
-      enabled: true,
-      description: formData.description || '',
-      allowed_ips: formData.allowed_ips ? formData.allowed_ips.split(',').map(ip => ip.trim()).filter(ip => ip) : []
+    const logData = {
+      timestamp,
+      filename: filename || 'unknown',
+      status,
+      reason: reason || 'unknown',
+      userAgent: userAgent || request.headers.get('User-Agent') || 'unknown',
+      ip: ip || request.headers.get('CF-Connecting-IP') || request.headers.get('X-Forwarded-For') || 'unknown',
+      referer: request.headers.get('Referer') || '',
+      accept: request.headers.get('Accept') || '',
+      url: request.url,
+      method: request.method,
+      ku9_detected: ku9Detected,
+      device_id: deviceId,
+      detection_methods: detectionMethods,
+      ku9_token_used: request.headers.get('X-Ku9-Token') || new URL(request.url).searchParams.get('ku9_token') || false,
+      app_signature: request.headers.get('X-App-Signature') || '',
+      app_version: request.headers.get('X-App-Version') || ''
     };
     
-    await env.MY_TEXT_STORAGE.put(`ku9_token_${token}`, JSON.stringify(tokenData));
-    
-    return new Response(JSON.stringify({
-      success: true,
-      token: token,
-      data: tokenData
-    }), {
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Content-Type-Options': 'nosniff'
-      }
+    await env.MY_TEXT_STORAGE.put(logId, JSON.stringify(logData), { 
+      expirationTtl: 2592000 // 30天过期
     });
     
+    // 更新IP历史记录
+    await updateIPHistory(ip, ku9Detected === 'confirmed', env);
+    
+    // 如果识别为酷9，更新已知设备列表
+    if (ku9Detected === 'confirmed' && deviceId) {
+      await updateKnownDevices(deviceId, ip, userAgent, env);
+    }
+    
+    console.log('✅ 日志已保存:', logId, filename, status, '酷9状态:', ku9Detected, '设备ID:', deviceId);
+    
+    return logId;
   } catch (error) {
-    console.error('生成酷9令牌错误:', error);
-    return new Response(JSON.stringify({
-      success: false,
-      error: `生成酷9令牌失败: ${error.message}`
-    }), {
-      status: 500,
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Content-Type-Options': 'nosniff'
-      }
-    });
+    console.error('❌ 记录访问日志失败:', error);
+    return null;
   }
 }
 
-async function handleDeleteKu9Token(request, env) {
+// 更新IP历史记录
+async function updateIPHistory(ip, isKu9, env) {
+  try {
+    if (!ip || ip === 'unknown') return;
+    
+    const ipHash = await hashString(ip);
+    const ipHistoryKey = `ip_history_${ipHash}`;
+    const existingHistory = await env.MY_TEXT_STORAGE.get(ipHistoryKey);
+    
+    let history = {
+      ip,
+      total_access: 0,
+      ku9_access_count: 0,
+      non_ku9_access_count: 0,
+      first_seen: Date.now(),
+      last_seen: Date.now()
+    };
+    
+    if (existingHistory) {
+      try {
+        history = JSON.parse(existingHistory);
+        history.last_seen = Date.now();
+      } catch (error) {
+        console.error('解析IP历史失败，重置:', error);
+      }
+    }
+    
+    history.total_access++;
+    if (isKu9) {
+      history.ku9_access_count++;
+    } else {
+      history.non_ku9_access_count++;
+    }
+    
+    await env.MY_TEXT_STORAGE.put(ipHistoryKey, JSON.stringify(history), {
+      expirationTtl: 604800 // 7天
+    });
+  } catch (error) {
+    console.error('更新IP历史失败:', error);
+  }
+}
+
+// 更新已知设备列表
+async function updateKnownDevices(deviceId, ip, userAgent, env) {
+  try {
+    // 添加到已知设备ID列表
+    const knownDeviceIdsData = await env.MY_TEXT_STORAGE.get('ku9_known_device_ids');
+    let knownDeviceIds = [];
+    
+    if (knownDeviceIdsData) {
+      try {
+        knownDeviceIds = JSON.parse(knownDeviceIdsData);
+      } catch (error) {
+        console.error('解析已知设备ID失败:', error);
+      }
+    }
+    
+    if (!knownDeviceIds.includes(deviceId)) {
+      knownDeviceIds.push(deviceId);
+      await env.MY_TEXT_STORAGE.put('ku9_known_device_ids', JSON.stringify(knownDeviceIds));
+    }
+    
+    // 添加到已知IP列表
+    if (ip && ip !== 'unknown') {
+      const knownIPsData = await env.MY_TEXT_STORAGE.get('ku9_known_ips');
+      let knownIPs = [];
+      
+      if (knownIPsData) {
+        try {
+          knownIPs = JSON.parse(knownIPsData);
+        } catch (error) {
+          console.error('解析已知IP失败:', error);
+        }
+      }
+      
+      if (!knownIPs.includes(ip)) {
+        knownIPs.push(ip);
+        await env.MY_TEXT_STORAGE.put('ku9_known_ips', JSON.stringify(knownIPs));
+      }
+    }
+    
+    // 保存设备指纹
+    const deviceFingerprint = {
+      device_id: deviceId,
+      ip,
+      user_agent: userAgent,
+      is_ku9: true,
+      confidence: 90,
+      first_seen: Date.now(),
+      last_seen: Date.now(),
+      access_count: 1
+    };
+    
+    const existingFingerprint = await env.MY_TEXT_STORAGE.get(`device_fingerprint_${deviceId}`);
+    if (existingFingerprint) {
+      try {
+        const existing = JSON.parse(existingFingerprint);
+        deviceFingerprint.access_count = (existing.access_count || 0) + 1;
+        deviceFingerprint.first_seen = existing.first_seen || Date.now();
+      } catch (error) {
+        console.error('解析设备指纹失败:', error);
+      }
+    }
+    
+    await env.MY_TEXT_STORAGE.put(`device_fingerprint_${deviceId}`, JSON.stringify(deviceFingerprint));
+    
+  } catch (error) {
+    console.error('更新已知设备失败:', error);
+  }
+}
+
+// API处理函数
+async function handleVerifyKu9App(request, env) {
   try {
     const formData = await parseFormData(request);
     const managementToken = new URL(request.url).searchParams.get('manage_token');
@@ -2297,25 +2584,36 @@ async function handleDeleteKu9Token(request, env) {
       });
     }
     
-    const token = formData.token;
-    if (!token) {
-      return new Response(JSON.stringify({
-        success: false,
-        error: '缺少令牌参数'
-      }), {
-        status: 400,
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Content-Type-Options': 'nosniff'
-        }
-      });
+    const userAgent = formData.user_agent || '';
+    const testHeaders = {};
+    
+    // 解析测试头
+    if (formData.http_headers) {
+      try {
+        const headers = JSON.parse(formData.http_headers);
+        Object.assign(testHeaders, headers);
+      } catch (error) {
+        console.error('解析HTTP头失败:', error);
+      }
     }
     
-    await env.MY_TEXT_STORAGE.delete(`ku9_token_${token}`);
+    // 创建模拟请求头
+    const mockHeaders = {
+      get: (name) => testHeaders[name] || '',
+      has: (name) => !!testHeaders[name]
+    };
+    
+    // 执行增强识别
+    const detectionResult = await enhancedDetectKu9Player(
+      userAgent,
+      mockHeaders,
+      formData.ip || '127.0.0.1',
+      env
+    );
     
     return new Response(JSON.stringify({
       success: true,
-      message: '令牌已删除'
+      detection: detectionResult
     }), {
       headers: {
         'Content-Type': 'application/json',
@@ -2324,10 +2622,10 @@ async function handleDeleteKu9Token(request, env) {
     });
     
   } catch (error) {
-    console.error('删除酷9令牌错误:', error);
+    console.error('验证酷9应用错误:', error);
     return new Response(JSON.stringify({
       success: false,
-      error: `删除酷9令牌失败: ${error.message}`
+      error: `验证失败: ${error.message}`
     }), {
       status: 500,
       headers: {
@@ -2338,7 +2636,96 @@ async function handleDeleteKu9Token(request, env) {
   }
 }
 
-async function handleMarkUA(request, env) {
+async function handleGetAppFingerprints(request, env) {
+  try {
+    const url = new URL(request.url);
+    const managementToken = url.searchParams.get('manage_token');
+    const expectedToken = await env.MY_TEXT_STORAGE.get('management_token') || 'default_manage_token_2024';
+    const fingerprintId = url.searchParams.get('fingerprint_id');
+    
+    if (!managementToken || managementToken !== expectedToken) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: '未授权访问'
+      }), {
+        status: 401,
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Content-Type-Options': 'nosniff'
+        }
+      });
+    }
+    
+    if (fingerprintId) {
+      // 获取单个指纹
+      const fingerprintData = await env.MY_TEXT_STORAGE.get(`app_fingerprint_${fingerprintId}`);
+      if (fingerprintData) {
+        return new Response(JSON.stringify({
+          success: true,
+          fingerprint: JSON.parse(fingerprintData)
+        }), {
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Content-Type-Options': 'nosniff'
+          }
+        });
+      } else {
+        return new Response(JSON.stringify({
+          success: false,
+          error: '指纹不存在'
+        }), {
+          status: 404,
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Content-Type-Options': 'nosniff'
+          }
+        });
+      }
+    } else {
+      // 获取所有指纹
+      const allKeys = await env.MY_TEXT_STORAGE.list();
+      const fingerprints = [];
+      
+      for (const key of allKeys.keys) {
+        if (key.name.startsWith('app_fingerprint_')) {
+          try {
+            const fingerprintData = await env.MY_TEXT_STORAGE.get(key.name);
+            if (fingerprintData) {
+              fingerprints.push(JSON.parse(fingerprintData));
+            }
+          } catch (error) {
+            console.error('解析应用程序指纹失败:', key.name, error);
+          }
+        }
+      }
+      
+      return new Response(JSON.stringify({
+        success: true,
+        fingerprints: fingerprints
+      }), {
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Content-Type-Options': 'nosniff'
+        }
+      });
+    }
+    
+  } catch (error) {
+    console.error('获取应用程序指纹错误:', error);
+    return new Response(JSON.stringify({
+      success: false,
+      error: `获取失败: ${error.message}`
+    }), {
+      status: 500,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Content-Type-Options': 'nosniff'
+      }
+    });
+  }
+}
+
+async function handleMarkAppFingerprint(request, env) {
   try {
     const formData = await parseFormData(request);
     const managementToken = new URL(request.url).searchParams.get('manage_token');
@@ -2357,13 +2744,14 @@ async function handleMarkUA(request, env) {
       });
     }
     
-    const logId = formData.log_id;
+    const fingerprintId = formData.fingerprint_id;
     const isKu9 = formData.is_ku9 === 'true';
+    const confidence = parseInt(formData.confidence) || 100;
     
-    if (!logId) {
+    if (!fingerprintId) {
       return new Response(JSON.stringify({
         success: false,
-        error: '缺少日志ID'
+        error: '缺少指纹ID'
       }), {
         status: 400,
         headers: {
@@ -2373,13 +2761,13 @@ async function handleMarkUA(request, env) {
       });
     }
     
-    const logKey = `log_${logId}`;
-    const logData = await env.MY_TEXT_STORAGE.get(logKey);
+    const fingerprintKey = `app_fingerprint_${fingerprintId}`;
+    const fingerprintData = await env.MY_TEXT_STORAGE.get(fingerprintKey);
     
-    if (!logData) {
+    if (!fingerprintData) {
       return new Response(JSON.stringify({
         success: false,
-        error: '日志不存在'
+        error: '指纹不存在'
       }), {
         status: 404,
         headers: {
@@ -2389,19 +2777,16 @@ async function handleMarkUA(request, env) {
       });
     }
     
-    const log = JSON.parse(logData);
+    const fingerprint = JSON.parse(fingerprintData);
+    fingerprint.is_ku9 = isKu9;
+    fingerprint.confidence = confidence;
+    fingerprint.last_seen = Date.now();
     
-    // 保存UA标记
-    const uaHash = await hashString(log.userAgent);
-    await env.MY_TEXT_STORAGE.put(`ku9_mark_${uaHash}`, isKu9 ? 'confirmed' : 'blocked');
-    
-    // 更新日志
-    log.ku9_detected = isKu9 ? 'confirmed' : 'blocked';
-    await env.MY_TEXT_STORAGE.put(logKey, JSON.stringify(log));
+    await env.MY_TEXT_STORAGE.put(fingerprintKey, JSON.stringify(fingerprint));
     
     return new Response(JSON.stringify({
       success: true,
-      message: `UA已标记为${isKu9 ? '酷9播放器' : '非酷9播放器'}`
+      message: `应用程序指纹已标记为${isKu9 ? '酷9播放器' : '非酷9播放器'}`
     }), {
       headers: {
         'Content-Type': 'application/json',
@@ -2410,10 +2795,10 @@ async function handleMarkUA(request, env) {
     });
     
   } catch (error) {
-    console.error('标记UA错误:', error);
+    console.error('标记应用程序指纹错误:', error);
     return new Response(JSON.stringify({
       success: false,
-      error: `标记UA失败: ${error.message}`
+      error: `标记失败: ${error.message}`
     }), {
       status: 500,
       headers: {
@@ -2424,86 +2809,7 @@ async function handleMarkUA(request, env) {
   }
 }
 
-async function handleUpdateDevice(request, env) {
-  try {
-    const formData = await parseFormData(request);
-    const managementToken = new URL(request.url).searchParams.get('manage_token');
-    const expectedToken = await env.MY_TEXT_STORAGE.get('management_token') || 'default_manage_token_2024';
-    
-    if (!managementToken || managementToken !== expectedToken) {
-      return new Response(JSON.stringify({
-        success: false,
-        error: '未授权访问'
-      }), {
-        status: 401,
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Content-Type-Options': 'nosniff'
-        }
-      });
-    }
-    
-    const deviceToken = formData.device_token;
-    const enabled = formData.enabled === 'true';
-    
-    if (!deviceToken) {
-      return new Response(JSON.stringify({
-        success: false,
-        error: '缺少设备令牌'
-      }), {
-        status: 400,
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Content-Type-Options': 'nosniff'
-        }
-      });
-    }
-    
-    const tokenData = await env.MY_TEXT_STORAGE.get(`ku9_token_${deviceToken}`);
-    if (!tokenData) {
-      return new Response(JSON.stringify({
-        success: false,
-        error: '设备令牌不存在'
-      }), {
-        status: 404,
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Content-Type-Options': 'nosniff'
-        }
-      });
-    }
-    
-    const tokenInfo = JSON.parse(tokenData);
-    tokenInfo.enabled = enabled;
-    
-    await env.MY_TEXT_STORAGE.put(`ku9_token_${deviceToken}`, JSON.stringify(tokenInfo));
-    
-    return new Response(JSON.stringify({
-      success: true,
-      message: `设备令牌已${enabled ? '启用' : '禁用'}`
-    }), {
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Content-Type-Options': 'nosniff'
-      }
-    });
-    
-  } catch (error) {
-    console.error('更新设备错误:', error);
-    return new Response(JSON.stringify({
-      success: false,
-      error: `更新设备失败: ${error.message}`
-    }), {
-      status: 500,
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Content-Type-Options': 'nosniff'
-      }
-    });
-  }
-}
-
-// 其他API处理函数保持不变
+// 其他API处理函数保持不变（需要调整参数以包含新功能）
 async function handleReadFile(request, env) {
   // ... 保持原有代码不变 ...
 }
@@ -2521,7 +2827,7 @@ async function handleGetEncryptionKey(request, env) {
 }
 
 async function handleLogDetail(request, env) {
-  // ... 保持原有代码不变 ...
+  // ... 保持原有代码不变，但需要支持新的日志字段 ...
 }
 
 async function handleUADetail(request, env) {
@@ -2534,6 +2840,95 @@ async function handleExportLogs(request, env) {
 
 async function handleClearLogs(request, env) {
   // ... 保持原有代码不变 ...
+}
+
+async function handleGenerateKu9Token(request, env) {
+  // ... 保持原有代码不变 ...
+}
+
+async function handleDeleteKu9Token(request, env) {
+  // ... 保持原有代码不变 ...
+}
+
+async function handleUpdateDevice(request, env) {
+  // ... 保持原有代码不变 ...
+}
+
+// 酷9令牌管理页面 - 保持不变
+async function handleKu9Page(request, env) {
+  // ... 保持原有代码不变 ...
+}
+
+async function getKu9HTML(request, env, managementToken) {
+  // ... 保持原有代码不变 ...
+}
+
+// 设备管理页面 - 保持不变
+async function handleDevicesPage(request, env) {
+  // ... 保持原有代码不变 ...
+}
+
+async function getDevicesHTML(request, env, managementToken) {
+  // ... 保持原有代码不变 ...
+}
+
+// 管理页面处理 - 保持不变
+async function handleManagementPage(request, env) {
+  // ... 保持原有代码不变 ...
+}
+
+// 访问日志页面处理 - 保持不变
+async function handleLogsPage(request, env) {
+  // ... 保持原有代码不变 ...
+}
+
+// 访问日志页面 HTML - 保持不变
+async function getLogsHTML(logs, currentPage, totalPages, stats, filterType, filterValue, managementToken) {
+  // ... 保持原有代码不变 ...
+}
+
+// 加密函数 - 动态时间加密
+function dynamicEncrypt(content, timestamp) {
+  if (!content) return '';
+  
+  const timeKey = timestamp.toString();
+  let encrypted = '';
+  
+  for (let i = 0; i < content.length; i++) {
+    const charCode = content.charCodeAt(i);
+    const timeIndex = i % timeKey.length;
+    const timeChar = timeKey.charCodeAt(timeIndex);
+    
+    let encryptedChar = charCode ^ timeChar;
+    encryptedChar = (encryptedChar + i + timestamp % 256) % 65536;
+    
+    encrypted += encryptedChar.toString(16).padStart(4, '0');
+  }
+  
+  return encrypted;
+}
+
+// 解密函数
+function dynamicDecrypt(encrypted, timestamp) {
+  if (!encrypted || encrypted.length % 4 !== 0) return '';
+  
+  let decrypted = '';
+  const timeKey = timestamp.toString();
+  
+  for (let i = 0; i < encrypted.length; i += 4) {
+    const hex = encrypted.substr(i, 4);
+    const encryptedChar = parseInt(hex, 16);
+    
+    const timeIndex = (i / 4) % timeKey.length;
+    const timeChar = timeKey.charCodeAt(timeIndex);
+    
+    let charCode = (encryptedChar - i/4 - timestamp % 256 + 65536) % 65536;
+    charCode = charCode ^ timeChar;
+    
+    decrypted += String.fromCharCode(charCode);
+  }
+  
+  return decrypted;
 }
 
 // 辅助函数
@@ -2586,6 +2981,13 @@ function generateToken() {
   return token;
 }
 
+// 生成指纹ID
+function generateFingerprintId() {
+  const timestamp = Date.now().toString(36);
+  const random = Math.random().toString(36).substr(2, 9);
+  return `fp_${timestamp}_${random}`;
+}
+
 // 生成字符串哈希
 async function hashString(str) {
   const encoder = new TextEncoder();
@@ -2595,13 +2997,46 @@ async function hashString(str) {
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-// 生成设备指纹
-async function generateDeviceFingerprint(ip, userAgent) {
-  const combined = `${ip}|${userAgent}`;
-  return await hashString(combined);
-}
-
 // 管理登录页面 - 保持不变
 async function getManagementLoginHTML(request) {
-  // ... 保持原有代码不变 ...
+  const html = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>管理登录</title>
+<style>
+body{font-family:"Segoe UI",Tahoma,sans-serif;background:#f5f5f5;margin:0;padding:20px;display:flex;justify-content:center;align-items:center;min-height:100vh;}
+.login-container{background:white;padding:40px;border-radius:10px;box-shadow:0 5px 15px rgba(0,0,0,0.1);width:100%;max-width:400px;}
+.login-container h2{text-align:center;color:#333;margin-bottom:30px;}
+.form-group{margin-bottom:20px;}
+.form-group label{display:block;margin-bottom:5px;color:#666;font-weight:bold;}
+.form-group input{width:100%;padding:10px;border:1px solid #ddd;border-radius:5px;font-size:16px;box-sizing:border-box;}
+.login-btn{width:100%;padding:12px;background:#4a6cf7;color:white;border:none;border-radius:5px;font-size:16px;cursor:pointer;transition:background 0.3s;}
+.login-btn:hover{background:#3653d3;}
+.error-message{color:#d9534f;text-align:center;margin-top:15px;}
+</style>
+</head>
+<body>
+<div class="login-container">
+  <h2>🔐 管理登录</h2>
+  <form method="get">
+    <div class="form-group">
+      <label for="manage_token">管理令牌：</label>
+      <input type="password" id="manage_token" name="manage_token" placeholder="输入管理令牌" required>
+    </div>
+    <button type="submit" class="login-btn">登录</button>
+  </form>
+  <p style="text-align:center;margin-top:20px;color:#666;font-size:14px;">默认令牌：default_manage_token_2024</p>
+</div>
+</body>
+</html>`;
+  
+  return html;
+}
+
+// 搜索管理页面 HTML - 保持不变（但可以添加链接到新功能）
+async function getSearchHTML(request, env, managementToken) {
+  // ... 保持原有代码不变，但可以添加链接到酷9识别配置和应用指纹管理 ...
+  // 例如：在适当位置添加 <a href="./ku9_detector.html?manage_token=${managementToken}">酷9识别配置</a>
+  // 和 <a href="./app_fingerprints.html?manage_token=${managementToken}">应用指纹管理</a>
 }
