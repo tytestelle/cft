@@ -152,7 +152,7 @@ export async function onRequest(context) {
   }
 }
 
-// 主页 HTML (index.html) - 保持不变
+// 主页 HTML (index.html)
 async function getIndexHTML() {
   return `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -937,7 +937,7 @@ function copyKu9Token() {
 
 function toggleKu9Token(activate) {
   const action = activate ? '激活' : '停用';
-  if (confirm(`确定要${action}酷9令牌吗？`)) {
+  if (confirm(\`确定要${action}酷9令牌吗？\`)) {
     fetch('/api_update_ku9_token?manage_token=${managementToken}', {
       method: 'POST',
       headers: {
@@ -948,15 +948,15 @@ function toggleKu9Token(activate) {
       .then(response => response.json())
       .then(data => {
         if (data.success) {
-          alert(`酷9令牌已${action}`);
+          alert(\`酷9令牌已${action}\`);
           location.reload();
         } else {
-          alert(`${action}失败: ` + (data.error || ''));
+          alert(\`${action}失败: \` + (data.error || ''));
         }
       })
       .catch(error => {
-        console.error(`${action}令牌失败:`, error);
-        alert(`${action}令牌失败`);
+        console.error(\`${action}令牌失败:\`, error);
+        alert(\`${action}令牌失败\`);
       });
   }
 }
@@ -1284,7 +1284,7 @@ function batchAllowAccess() {
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded'
         },
-        body: 'ua_hash=' + encodeURIComponent(hash) + '&allow_access=true'
+        body: 'ua_hash=' + encodeURIComponent(uaHash) + '&allow_access=true'
       }).then(r => r.json())
     );
     
@@ -1877,7 +1877,7 @@ window.onclick = function(event) {
 </html>`;
 }
 
-// 管理登录页面 - 保持不变
+// 管理登录页面
 async function getManagementLoginHTML(request) {
   return `<!DOCTYPE html>
 <html>
