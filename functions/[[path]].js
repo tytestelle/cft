@@ -1,5 +1,5 @@
-// Cloudflare Pages Functions - 增强安全文本存储系统 V2.1
-// 新增：访问日志记录功能
+// Cloudflare Pages Functions - 增强安全文本存储系统 V2.2
+// 升级：修复酷9播放器访问问题
 export async function onRequest(context) {
   const { request, env } = context;
   const url = new URL(request.url);
@@ -552,7 +552,7 @@ async function getLogsHTML(logs, currentPage, totalPages, stats, filterType, fil
       let playerType = '未知';
       if (userAgent.toLowerCase().includes('tvbox') || userAgent.toLowerCase().includes('tv-box')) {
         playerType = 'TVBox';
-      } else if (userAgent.toLowerCase().includes('ku9') || userAgent.includes('酷9')) {
+      } else if (userAgent.toLowerCase().includes('ku9') || userAgent.includes('酷9') || userAgent === 'MTV') {
         playerType = '酷9';
       } else if (userAgent.toLowerCase().includes('kodi')) {
         playerType = 'Kodi';
@@ -841,6 +841,11 @@ function showUADetail(logId) {
         if (uaLower.includes('ku9') || uaLower.includes('酷9')) {
           keywords.push('ku9');
           signatureHTML += '<div><strong>酷9特征：</strong> 包含"ku9"或"酷9"关键词</div>';
+        }
+        
+        if (ua === 'MTV') {
+          keywords.push('mtv');
+          signatureHTML += '<div><strong>酷9特征：</strong> User-Agent为"MTV"（酷9播放器标识）</div>';
         }
         
         if (uaLower.includes('android')) {
@@ -2014,7 +2019,7 @@ async function handleReadFile(request, env) {
   }
 }
 
-// 安全文件下载处理 - 增强版（增加日志记录）
+// 安全文件下载处理 - 增强版（修复酷9播放器访问问题）
 async function handleSecureFileDownload(filename, request, env) {
   try {
     // 解码文件名
@@ -2082,7 +2087,7 @@ async function handleSecureFileDownload(filename, request, env) {
     const referer = request.headers.get('Referer') || '';
     const accept = request.headers.get('Accept') || '';
     
-    // 播放器白名单
+    // 播放器白名单 - 修复：添加"MTV"关键词
     const playerWhitelist = [
       'tvbox', 'tv-box', 'tv.box', '影视仓', 'yingshicang',
       'ku9', 'k9player', 'k9 player', '酷9', 'k9',
@@ -2099,7 +2104,8 @@ async function handleSecureFileDownload(filename, request, env) {
       'smarttv', 'smart tv',
       'mag', 'infomir',
       'okhttp', 'okhttp/', 'curl', 'wget',
-      'm3u', 'm3u8', 'hls'
+      'm3u', 'm3u8', 'hls',
+      'mtv', 'MTV'  // 新增：修复酷9播放器访问问题
     ];
     
     // 抓包软件黑名单
@@ -2129,7 +2135,13 @@ async function handleSecureFileDownload(filename, request, env) {
     let reason = '';
     
     // 规则1：检查播放器白名单
-    if (playerWhitelist.some(player => lowerUserAgent.includes(player))) {
+    if (playerWhitelist.some(player => {
+        // 特别处理"MTV"关键词，需要完全匹配（不是包含关系）
+        if (player === 'mtv' || player === 'MTV') {
+          return userAgent === 'MTV'; // 完全匹配
+        }
+        return lowerUserAgent.includes(player.toLowerCase());
+    })) {
       allowAccess = true;
       reason = '播放器访问';
     }
