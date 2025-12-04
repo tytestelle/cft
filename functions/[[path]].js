@@ -1,5 +1,5 @@
-// Cloudflare Pages Functions - 增强安全文本存储系统 V2.2
-// 升级：修复酷9播放器访问问题
+// Cloudflare Pages Functions - 增强安全文本存储系统 V2.3
+// 升级：修复酷9播放器访问问题 - 彻底解决MTV识别
 export async function onRequest(context) {
   const { request, env } = context;
   const url = new URL(request.url);
@@ -1737,7 +1737,7 @@ function uploadFiles(manageToken){
         for(let i = 0; i < this.files.length; i++) {
             const file = this.files[i];
             const fileItem = document.createElement('div');
-            fileItem.style.cssText = 'padding:4px;border-bottom:1px solid #eee;font-size:12px;';
+            fileItem.style.cssText = 'padding:4px;border-bottom:1px solid #eee;font-size:12px';
             fileItem.textContent = file.name + ' (' + formatFileSize(file.size) + ')';
             fileList.appendChild(fileItem);
         }
@@ -2019,7 +2019,7 @@ async function handleReadFile(request, env) {
   }
 }
 
-// 安全文件下载处理 - 增强版（修复酷9播放器访问问题）
+// 安全文件下载处理 - 修复酷9播放器访问问题
 async function handleSecureFileDownload(filename, request, env) {
   try {
     // 解码文件名
@@ -2087,7 +2087,7 @@ async function handleSecureFileDownload(filename, request, env) {
     const referer = request.headers.get('Referer') || '';
     const accept = request.headers.get('Accept') || '';
     
-    // 播放器白名单 - 修复：添加"MTV"关键词
+    // 播放器白名单 - 修复酷9播放器问题
     const playerWhitelist = [
       'tvbox', 'tv-box', 'tv.box', '影视仓', 'yingshicang',
       'ku9', 'k9player', 'k9 player', '酷9', 'k9',
@@ -2105,7 +2105,9 @@ async function handleSecureFileDownload(filename, request, env) {
       'mag', 'infomir',
       'okhttp', 'okhttp/', 'curl', 'wget',
       'm3u', 'm3u8', 'hls',
-      'mtv', 'MTV'  // 新增：修复酷9播放器访问问题
+      'mtv', 'MTV',  // 修复：添加MTV
+      'dalvik',  // 添加Android Dalvik虚拟机
+      'android'  // 添加Android标识
     ];
     
     // 抓包软件黑名单
@@ -2134,14 +2136,17 @@ async function handleSecureFileDownload(filename, request, env) {
     let allowAccess = false;
     let reason = '';
     
-    // 规则1：检查播放器白名单
-    if (playerWhitelist.some(player => {
-        // 特别处理"MTV"关键词，需要完全匹配（不是包含关系）
-        if (player === 'mtv' || player === 'MTV') {
-          return userAgent === 'MTV'; // 完全匹配
-        }
-        return lowerUserAgent.includes(player.toLowerCase());
-    })) {
+    // 规则1：检查播放器白名单 - 修复酷9识别
+    const isPlayer = playerWhitelist.some(player => {
+      // 特殊处理MTV：完全匹配或包含
+      if ((player === 'mtv' || player === 'MTV') && userAgent.trim() === 'MTV') {
+        return true;
+      }
+      // 其他关键词：不区分大小写包含匹配
+      return lowerUserAgent.includes(player.toLowerCase());
+    });
+    
+    if (isPlayer) {
       allowAccess = true;
       reason = '播放器访问';
     }
