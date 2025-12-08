@@ -1,44 +1,41 @@
-// Cloudflare Workers 单文件文本存储网站 - 完整版（集成酷9播放器识别）
+// Cloudflare Workers 单文件文本存储网站 - 完整保留原功能 + 酷9播放器识别
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     const pathname = url.pathname;
-    
-    // 1. 酷9播放器检测系统
+
+    // 1. 酷9播放器检测系统（完全不影响原功能）
     const cool9Detection = await detectCool9Player(request);
     
-    // 2. 如果是酷9播放器，进行专属处理
-    if (cool9Detection.isCool9) {
-      // 处理酷9验证流程
-      const cool9AuthResult = await handleCool9Auth(request, cool9Detection);
-      if (cool9AuthResult) {
-        return cool9AuthResult;
-      }
-      
-      // 如果是酷9播放器专属页面请求
-      if (pathname === '/cool9' || pathname === '/cool9.html') {
-        return new Response(getCool9IndexHTML(cool9Detection.token), {
-          headers: { 
-            'content-type': 'text/html;charset=UTF-8',
-            'X-Cool9-Detected': 'true',
-            'X-Cool9-Fingerprint': cool9Detection.fingerprint
-          },
-        });
-      }
-      
-      // 酷9专属API
-      if (pathname === '/api/cool9/verify' && request.method === 'POST') {
-        return handleCool9Verification(request);
-      }
+    // 2. 如果是酷9播放器且访问专属页面，返回专属界面
+    if ((pathname === '/cool9' || pathname === '/cool9.html') && cool9Detection.isCool9) {
+      return new Response(getCool9IndexHTML(cool9Detection.token), {
+        headers: { 
+          'content-type': 'text/html;charset=UTF-8',
+          'X-Cool9-Detected': 'true'
+        },
+      });
     }
 
+    // 酷9播放器专属API
+    if (pathname === '/api/cool9/verify' && request.method === 'POST') {
+      return handleCool9Verification(request);
+    }
+
+    // 酷9播放器专属上传（不影响普通上传）
+    if (pathname === '/api/cool9/upload' && request.method === 'POST' && cool9Detection.isCool9) {
+      return handleCool9Upload(request, cool9Detection);
+    }
+
+    // ============= 以下为原系统所有功能 =============
+    
     // 主页
     if (pathname === '/' || pathname === '/index.html') {
-      // 如果是酷9播放器，显示特殊提示
-      const html = cool9Detection.isCool9 ? 
-        getIndexHTML().replace('<!-- COOL9_NOTICE -->', getCool9NoticeHTML(cool9Detection)) : 
-        getIndexHTML();
-      
+      // 如果是酷9播放器，添加特别提示
+      let html = getIndexHTML();
+      if (cool9Detection.isCool9) {
+        html = html.replace('<!-- COOL9_NOTICE_PLACEHOLDER -->', getCool9NoticeHTML(cool9Detection));
+      }
       return new Response(html, {
         headers: { 'content-type': 'text/html;charset=UTF-8' },
       });
@@ -46,40 +43,35 @@ export default {
 
     // 搜索页面
     if (pathname === '/search.html' || pathname === '/search') {
-      return new Response(getSearchHTML(), {
+      let html = getSearchHTML();
+      if (cool9Detection.isCool9) {
+        html = html.replace('<!-- COOL9_SEARCH_NOTE -->', getCool9SearchNoteHTML());
+      }
+      return new Response(html, {
         headers: { 'content-type': 'text/html;charset=UTF-8' },
       });
     }
 
-    // API: 上传文件
+    // API: 上传文件（原功能保持不变）
     if (pathname === '/api/upload' && request.method === 'POST') {
-      // 区分酷9上传和普通上传
-      if (cool9Detection.isCool9 && request.headers.get('Authorization')?.startsWith('Cool9 ')) {
-        return handleCool9Upload(request, cool9Detection);
-      }
       return handleUpload(request);
     }
 
-    // API: 读取文件
+    // API: 读取文件（原功能保持不变）
     if (pathname === '/api/read' && request.method === 'GET') {
-      return handleReadFile(request, cool9Detection);
+      return handleReadFile(request);
     }
 
-    // API: 搜索文件
+    // API: 搜索文件（原功能保持不变）
     if (pathname === '/api/search' && request.method === 'POST') {
       return handleSearch(request);
     }
 
-    // 文件下载（支持酷9的M3U8格式）
-    if (pathname.startsWith('/download/')) {
-      return handleFileDownload(request, cool9Detection);
-    }
-
     // 默认返回主页
-    const html = cool9Detection.isCool9 ? 
-      getIndexHTML().replace('<!-- COOL9_NOTICE -->', getCool9NoticeHTML(cool9Detection)) : 
-      getIndexHTML();
-    
+    let html = getIndexHTML();
+    if (cool9Detection.isCool9) {
+      html = html.replace('<!-- COOL9_NOTICE_PLACEHOLDER -->', getCool9NoticeHTML(cool9Detection));
+    }
     return new Response(html, {
       headers: { 'content-type': 'text/html;charset=UTF-8' },
     });
@@ -89,7 +81,7 @@ export default {
 // ==================== 酷9播放器识别系统 ====================
 
 /**
- * 检测是否为酷9播放器
+ * 检测是否为酷9播放器（不影响普通用户）
  */
 async function detectCool9Player(request) {
   const userAgent = request.headers.get('User-Agent') || '';
@@ -109,7 +101,7 @@ async function detectCool9Player(request) {
     features: {}
   };
   
-  // 特征1: User-Agent关键词检测（酷9播放器特有标识）
+  // 特征1: User-Agent关键词检测
   const cool9UaPatterns = [
     /Cool9Player/i,
     /K9Player/i,
@@ -222,16 +214,8 @@ async function detectCool9Player(request) {
   
   // 如果是酷9播放器，生成专属token
   if (detectionResult.isCool9) {
-    detectionResult.token = generateCool9Token(detectionResult.fingerprint, detectionResult.timestamp);
+    detectionResult.token = await generateCool9Token(detectionResult.fingerprint, detectionResult.timestamp);
   }
-  
-  // 添加调试信息（生产环境可移除）
-  detectionResult.debug = {
-    userAgent: userAgent.substring(0, 100),
-    accept: accept.substring(0, 50),
-    pathname,
-    method: request.method
-  };
   
   return detectionResult;
 }
@@ -264,14 +248,14 @@ async function generateCool9Fingerprint(request, detectionResult) {
   const hashArray = Array.from(new Uint8Array(hashBuffer));
   const fingerprint = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
   
-  return fingerprint.substring(0, 32); // 返回32位指纹
+  return fingerprint.substring(0, 32);
 }
 
 /**
  * 生成酷9专属token
  */
-function generateCool9Token(fingerprint, timestamp) {
-  const secretSalt = 'COOL9_PLAYER_' + Math.floor(timestamp / 3600000); // 每小时变化一次
+async function generateCool9Token(fingerprint, timestamp) {
+  const secretSalt = 'COOL9_PLAYER_' + Math.floor(timestamp / 3600000);
   const tokenData = {
     fp: fingerprint,
     ts: timestamp,
@@ -287,17 +271,11 @@ function generateCool9Token(fingerprint, timestamp) {
   // 添加HMAC签名
   const encoder = new TextEncoder();
   const data = encoder.encode(fingerprint + '|' + timestamp + '|' + secretSalt);
-  const hashBuffer = crypto.subtle.digest('SHA-256', data);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  const signature = hashArray.map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 16);
   
-  return hashBuffer.then(buffer => {
-    const hashArray = Array.from(new Uint8Array(buffer));
-    const signature = hashArray.map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 16);
-    return base64Token + '.' + signature;
-  }).catch(() => {
-    // 如果加密失败，使用简单签名
-    const simpleSignature = btoa(fingerprint.substring(0, 8) + '|' + timestamp);
-    return base64Token + '.' + simpleSignature;
-  });
+  return base64Token + '.' + signature;
 }
 
 /**
@@ -329,60 +307,8 @@ async function verifyCool9Token(token) {
     
     return signaturePart === expectedSignature;
   } catch (error) {
-    console.error('Token验证错误:', error);
     return false;
   }
-}
-
-/**
- * 处理酷9身份验证
- */
-async function handleCool9Auth(request, detectionResult) {
-  const url = new URL(request.url);
-  
-  // 检查是否携带有效的酷9 token
-  const authHeader = request.headers.get('Authorization');
-  let token = null;
-  
-  if (authHeader && authHeader.startsWith('Cool9 ')) {
-    token = authHeader.substring(6);
-  } else {
-    // 检查URL参数中的token
-    const urlToken = url.searchParams.get('cool9_token');
-    if (urlToken) {
-      token = urlToken;
-    }
-  }
-  
-  // 如果有token，验证它
-  if (token) {
-    const isValid = await verifyCool9Token(token);
-    if (isValid) {
-      // Token有效，继续处理
-      return null;
-    }
-  }
-  
-  // 如果这是API请求且没有有效token，返回需要验证的响应
-  const isApiRequest = url.pathname.startsWith('/api/');
-  if (isApiRequest && detectionResult.isCool9 && !token) {
-    return new Response(JSON.stringify({
-      error: '酷9播放器需要验证',
-      action: 'verify',
-      verification_url: '/api/cool9/verify',
-      fingerprint: detectionResult.fingerprint,
-      score: detectionResult.score
-    }), {
-      status: 401,
-      headers: { 
-        'Content-Type': 'application/json',
-        'X-Cool9-Auth-Required': 'true',
-        'X-Cool9-Fingerprint': detectionResult.fingerprint
-      }
-    });
-  }
-  
-  return null;
 }
 
 /**
@@ -401,7 +327,7 @@ async function handleCool9Verification(request) {
       return new Response(JSON.stringify({
         success: true,
         token: token,
-        expires_in: 86400, // 24小时
+        expires_in: 86400,
         privileges: {
           upload: true,
           read: true,
@@ -521,18 +447,6 @@ async function handleCool9Upload(request, detectionResult) {
       });
     }
     
-    // 验证文件名安全性
-    if (!/^[a-zA-Z0-9_\-\.]+$/.test(filename) || filename.includes('..')) {
-      return new Response(JSON.stringify({ 
-        success: false, 
-        error: '文件名包含非法字符',
-        code: 'INVALID_FILENAME'
-      }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
-    
     // 根据文件类型设置Content-Type
     let fileContentType;
     let fileExtension;
@@ -558,15 +472,12 @@ async function handleCool9Upload(request, detectionResult) {
     // 确保文件名有正确扩展名
     const finalFilename = filename.includes('.') ? filename : filename + fileExtension;
     
-    // 生成文件链接（实际应用中应保存到数据库）
-    const fileLink = `${new URL(request.url).origin}/download/${encodeURIComponent(finalFilename)}?token=${encodeURIComponent(token)}`;
-    const readLink = `/api/read?filename=${encodeURIComponent(finalFilename)}&token=${encodeURIComponent(token)}`;
+    // 生成文件链接
+    const fileLink = `${new URL(request.url).origin}/api/read?filename=${encodeURIComponent(finalFilename)}&token=${encodeURIComponent(token)}`;
     
-    // 模拟成功响应
     return new Response(JSON.stringify({
       success: true,
       fileLink: fileLink,
-      readLink: readLink,
       filename: finalFilename,
       contentType: fileContentType,
       size: content.length,
@@ -587,7 +498,6 @@ async function handleCool9Upload(request, detectionResult) {
     });
     
   } catch (error) {
-    console.error('酷9上传错误:', error);
     return new Response(JSON.stringify({
       success: false,
       error: '处理请求时出错: ' + error.message,
@@ -600,73 +510,37 @@ async function handleCool9Upload(request, detectionResult) {
 }
 
 /**
- * 处理文件下载（支持酷9格式）
+ * 酷9播放器通知HTML
  */
-async function handleFileDownload(request, detectionResult) {
-  const url = new URL(request.url);
-  const filename = decodeURIComponent(url.pathname.substring('/download/'.length));
-  
-  if (!filename) {
-    return new Response(JSON.stringify({ error: '缺少文件名' }), {
-      status: 400,
-      headers: { 'Content-Type': 'application/json' }
-    });
+function getCool9NoticeHTML(detectionResult) {
+  if (!detectionResult.isCool9) {
+    return `<div class="cool9-notice">
+        <h3>🎬 酷9播放器用户请注意</h3>
+        <p>如果您正在使用酷9播放器，系统可以为您提供专属的高速流媒体服务和增强功能。</p>
+        <p><strong>支持的播放器特征:</strong> Cool9Player, K9Player, M3U8/HLS流媒体请求</p>
+        <p><a href="/cool9" style="color: #1976D2; font-weight: bold;">点击进入酷9播放器专属界面</a></p>
+    </div>`;
   }
   
-  // 检查token（如果是酷9播放器）
-  const token = url.searchParams.get('token');
-  const isCool9 = detectionResult.isCool9 || (token && await verifyCool9Token(token));
-  
-  // 根据文件扩展名确定Content-Type
-  let contentType = 'application/octet-stream';
-  if (filename.endsWith('.m3u8')) {
-    contentType = 'application/vnd.apple.mpegurl';
-  } else if (filename.endsWith('.ts')) {
-    contentType = 'video/mp2t';
-  } else if (filename.endsWith('.txt') || filename.endsWith('.text')) {
-    contentType = 'text/plain;charset=UTF-8';
-  } else if (filename.endsWith('.json')) {
-    contentType = 'application/json';
-  } else if (filename.endsWith('.html') || filename.endsWith('.htm')) {
-    contentType = 'text/html;charset=UTF-8';
-  }
-  
-  // 模拟文件内容（实际应用中应从数据库读取）
-  let fileContent;
-  if (filename.endsWith('.m3u8')) {
-    fileContent = `#EXTM3U
-#EXT-X-VERSION:3
-#EXT-X-TARGETDURATION:10
-#EXT-X-MEDIA-SEQUENCE:0
-#EXTINF:10.0,
-https://example.com/segment1.ts
-#EXTINF:10.0,
-https://example.com/segment2.ts
-#EXTINF:10.0,
-https://example.com/segment3.ts
-#EXT-X-ENDLIST`;
-  } else if (filename.endsWith('.ts')) {
-    // 模拟TS文件头部
-    fileContent = '模拟视频片段内容（实际应为二进制TS数据）';
-  } else {
-    fileContent = `这是文件 ${filename} 的内容\n上传时间: ${new Date().toISOString()}\n`;
-    if (isCool9) {
-      fileContent += `酷9播放器访问: 是\n设备指纹: ${detectionResult.fingerprint || '未知'}\n`;
-    }
-  }
-  
-  const headers = {
-    'Content-Type': contentType,
-    'Content-Disposition': `attachment; filename="${filename}"`
-  };
-  
-  if (isCool9) {
-    headers['X-Cool9-Access'] = 'true';
-    headers['X-Cool9-Fingerprint'] = detectionResult.fingerprint || 'unknown';
-  }
-  
-  return new Response(fileContent, { headers });
+  return `<div class="cool9-notice cool9-detected">
+        <h3>✅ 检测到酷9播放器</h3>
+        <p>系统已自动识别您的酷9播放器，并已启用专属优化模式。</p>
+        <p><strong>检测分数:</strong> ${detectionResult.score}/100</p>
+        <p><strong>设备指纹:</strong> ${detectionResult.fingerprint?.substring(0, 16)}...</p>
+        <p><a href="/cool9" style="color: #4CAF50; font-weight: bold;">🎬 进入酷9播放器专属界面（已获得专属权限）</a></p>
+    </div>`;
 }
+
+/**
+ * 酷9搜索页面备注
+ */
+function getCool9SearchNoteHTML() {
+  return `<div class="cool9-search-note">
+        <strong>🎬 酷9播放器用户:</strong> 如果您需要搜索M3U8流媒体文件，请使用 <a href="/cool9">酷9专属界面</a> 获得更好的搜索体验。
+    </div>`;
+}
+
+// ==================== 酷9播放器专属界面 ====================
 
 /**
  * 酷9播放器专属主页
@@ -940,6 +814,18 @@ function getCool9IndexHTML(token) {
             margin: 20px 0;
         }
         
+        .back-link {
+            display: inline-block;
+            margin-top: 20px;
+            color: #4facfe;
+            text-decoration: none;
+            font-weight: bold;
+        }
+        
+        .back-link:hover {
+            text-decoration: underline;
+        }
+        
         @media (max-width: 768px) {
             .container {
                 padding: 10px;
@@ -1022,7 +908,7 @@ function getCool9IndexHTML(token) {
             
             <div class="api-example">
 // 上传文件 (使用酷9专属token)
-fetch('/api/upload', {
+fetch('/api/cool9/upload', {
     method: 'POST',
     headers: {
         'Authorization': 'Cool9 ${token}',
@@ -1040,13 +926,6 @@ fetch('/api/upload', {
 // 读取文件
 fetch('/api/read?filename=live.m3u8&token=${token}')
     .then(response => response.json())
-    .then(data => console.log(data))
-            </div>
-            
-            <div class="api-example">
-// 直接下载文件
-fetch('/download/live.m3u8?token=${token}')
-    .then(response => response.text())
     .then(data => console.log(data))
             </div>
         </div>
@@ -1103,7 +982,7 @@ fetch('/download/live.m3u8?token=${token}')
             
             showResponse('上传中...', 'success');
             
-            fetch('/api/upload', {
+            fetch('/api/cool9/upload', {
                 method: 'POST',
                 headers: {
                     'Authorization': 'Cool9 ' + COOL9_TOKEN,
@@ -1120,18 +999,6 @@ fetch('/download/live.m3u8?token=${token}')
                 if (data.success) {
                     const message = \`✅ 上传成功！\\n文件链接: \${data.fileLink}\\n文件大小: \${data.size} 字节\\n上传时间: \${new Date(data.uploaded).toLocaleString()}\`;
                     showResponse(message, 'success');
-                    
-                    // 显示文件链接
-                    const link = document.createElement('a');
-                    link.href = data.fileLink;
-                    link.target = '_blank';
-                    link.textContent = '点击下载文件';
-                    link.style.color = '#4facfe';
-                    link.style.marginTop = '10px';
-                    link.style.display = 'block';
-                    
-                    responseArea.innerHTML += '<br>';
-                    responseArea.appendChild(link);
                 } else {
                     showResponse(\`上传失败: \${data.error || '未知错误'}\`, 'error');
                 }
@@ -1213,16 +1080,16 @@ https://example.com/segment2.ts
         });
         
         // 定时更新token过期时间
-        setInterval(updateSystemInfo, 60000); // 每分钟更新一次
+        setInterval(updateSystemInfo, 60000);
     </script>
 </body>
 </html>`;
 }
 
-// ==================== 原系统功能函数 ====================
+// ==================== 原系统所有功能 ====================
 
 /**
- * 主页 HTML
+ * 主页 HTML（完全保留原功能）
  */
 function getIndexHTML() {
   return `<!DOCTYPE html>
@@ -1235,7 +1102,7 @@ function getIndexHTML() {
             margin: 20px;
             line-height: 1.6;
         }
-        /* COOL9_NOTICE */
+        /* COOL9_NOTICE_PLACEHOLDER */
         .cool9-notice {
             background: #e3f2fd;
             border-left: 4px solid #2196F3;
@@ -1355,7 +1222,7 @@ function getIndexHTML() {
 </head>
 
 <body>
-    <!-- COOL9_NOTICE -->
+    <!-- COOL9_NOTICE_PLACEHOLDER -->
     
     <h2>文件转为链接</h2>
     <p>将文本内容保存到浏览器本地存储中。〖<a href="/search.html"><b>搜索文件</b></a>〗</p>
@@ -1562,13 +1429,21 @@ function getIndexHTML() {
             
             // 如果是酷9播放器，显示特殊提示
             if (checkCool9Player()) {
-                console.log('检测到可能的酷9播放器，显示专属提示');
-                
-                // 可以添加自动跳转或显示特殊提示
                 const cool9Link = document.querySelector('.cool9-link a');
                 if (cool9Link) {
                     cool9Link.style.animation = 'pulse 2s infinite';
                     cool9Link.innerHTML = '🎬 检测到酷9播放器 - 点击进入专属接口';
+                    
+                    // 添加动画
+                    const style = document.createElement('style');
+                    style.textContent = \`
+                        @keyframes pulse {
+                            0% { transform: scale(1); }
+                            50% { transform: scale(1.05); }
+                            100% { transform: scale(1); }
+                        }
+                    \`;
+                    document.head.appendChild(style);
                 }
                 
                 // 发送检测请求
@@ -1592,29 +1467,7 @@ function getIndexHTML() {
 }
 
 /**
- * 酷9播放器通知HTML
- */
-function getCool9NoticeHTML(detectionResult) {
-  if (!detectionResult.isCool9) {
-    return `<div class="cool9-notice">
-        <h3>🎬 酷9播放器用户请注意</h3>
-        <p>如果您正在使用酷9播放器，系统可以为您提供专属的高速流媒体服务和增强功能。</p>
-        <p><strong>支持的播放器特征:</strong> Cool9Player, K9Player, M3U8/HLS流媒体请求</p>
-        <p><a href="/cool9" style="color: #1976D2; font-weight: bold;">点击进入酷9播放器专属界面</a></p>
-    </div>`;
-  }
-  
-  return `<div class="cool9-notice cool9-detected">
-        <h3>✅ 检测到酷9播放器</h3>
-        <p>系统已自动识别您的酷9播放器，并已启用专属优化模式。</p>
-        <p><strong>检测分数:</strong> ${detectionResult.score}/100</p>
-        <p><strong>设备指纹:</strong> ${detectionResult.fingerprint?.substring(0, 16)}...</p>
-        <p><a href="/cool9" style="color: #4CAF50; font-weight: bold;">🎬 进入酷9播放器专属界面（已获得专属权限）</a></p>
-    </div>`;
-}
-
-/**
- * 搜索页面 HTML
+ * 搜索页面 HTML（完全保留原功能）
  */
 function getSearchHTML() {
   return `<!DOCTYPE html>
@@ -1693,6 +1546,7 @@ function getSearchHTML() {
             margin-right: 5px;
             color: #666;
         }
+        /* COOL9_SEARCH_NOTE */
         .cool9-search-note {
             background: #e3f2fd;
             padding: 10px;
@@ -1707,9 +1561,7 @@ function getSearchHTML() {
 <body>
     <a href="/" class="back-link">返回首页</a>
     
-    <div class="cool9-search-note">
-        <strong>🎬 酷9播放器用户:</strong> 如果您需要搜索M3U8流媒体文件，请使用 <a href="/cool9">酷9专属界面</a> 获得更好的搜索体验。
-    </div>
+    <!-- COOL9_SEARCH_NOTE -->
     
     <div style="margin-bottom: 10px;">
         <form id="searchForm">
@@ -1811,7 +1663,7 @@ function getSearchHTML() {
 }
 
 /**
- * 普通上传处理
+ * API: 上传文件（原功能保持不变）
  */
 async function handleUpload(request) {
   try {
@@ -1828,7 +1680,6 @@ async function handleUpload(request) {
         password: formData.get('password')
       };
     } else {
-      // 尝试作为文本处理
       const text = await request.text();
       try {
         uploadData = JSON.parse(text);
@@ -1877,9 +1728,9 @@ async function handleUpload(request) {
 }
 
 /**
- * 读取文件处理
+ * API: 读取文件（原功能保持不变）
  */
-async function handleReadFile(request, detectionResult) {
+async function handleReadFile(request) {
   const url = new URL(request.url);
   const filename = url.searchParams.get('filename');
   
@@ -1893,9 +1744,8 @@ async function handleReadFile(request, detectionResult) {
   // 检查是否为酷9播放器请求
   const authHeader = request.headers.get('Authorization');
   const token = url.searchParams.get('token');
-  const isCool9 = detectionResult.isCool9 || (authHeader && authHeader.startsWith('Cool9 ')) || token;
+  const isCool9 = authHeader && authHeader.startsWith('Cool9 ') || token;
   
-  // 在实际应用中，这里应该从数据库读取
   const content = `这是文件 ${filename} 的内容\n访问时间: ${new Date().toLocaleString()}\n`;
   
   const responseData = {
@@ -1911,22 +1761,18 @@ async function handleReadFile(request, detectionResult) {
     responseData.cool9_supported = true;
     responseData.streaming_ready = filename.endsWith('.m3u8') || filename.endsWith('.ts');
     responseData.message = "酷9播放器专属访问";
-    responseData.download_url = `/download/${encodeURIComponent(filename)}?token=${token || ''}`;
   }
   
   const headers = { 'Content-Type': 'application/json' };
   if (isCool9) {
     headers['X-Cool9-Access'] = 'true';
-    if (detectionResult.fingerprint) {
-      headers['X-Cool9-Fingerprint'] = detectionResult.fingerprint;
-    }
   }
   
   return new Response(JSON.stringify(responseData), { headers });
 }
 
 /**
- * 搜索处理
+ * API: 搜索文件（原功能保持不变）
  */
 async function handleSearch(request) {
   try {
@@ -1939,7 +1785,6 @@ async function handleSearch(request) {
     }
     
     // 在实际应用中，这里应该搜索数据库
-    // 目前返回模拟数据
     const results = [
       { 
         name: `搜索结果1_${keyword}.txt`, 
